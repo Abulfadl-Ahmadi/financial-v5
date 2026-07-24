@@ -1,9 +1,12 @@
 from ninja import Router
 from ninja.errors import HttpError
 from typing import List
+from django.db.models import Q
 from django.contrib.auth import authenticate
 from apps.users.models import User
 from apps.users.schemas import UserOut, UserCreateIn, UserUpdateIn, LoginIn
+from apps.financial.models import Receipt
+from apps.financial.schemas import ReceiptOut
 from ninja_jwt.tokens import RefreshToken
 
 router = Router(tags=["Users & Auth"])
@@ -37,6 +40,23 @@ def get_user(request, user_id: int):
         return User.objects.get(id=user_id)
     except User.DoesNotExist:
         raise HttpError(404, "User not found")
+
+@router.get("/{user_id}/receipts", response=List[ReceiptOut])
+def get_user_receipts(request, user_id: int):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        raise HttpError(404, "User not found")
+        
+    query = Q(from_account__user=user) | Q(to_account__user=user)
+    if user.card_number:
+        query |= Q(from_account__card_number=user.card_number) | Q(to_account__card_number=user.card_number)
+    if user.first_name and user.last_name:
+        query |= (Q(from_account__f_name=user.first_name) & Q(from_account__l_name=user.last_name))
+        query |= (Q(to_account__f_name=user.first_name) & Q(to_account__l_name=user.last_name))
+
+    receipts = Receipt.objects.filter(query).select_related("from_account", "to_account").distinct().order_by("-created_at")
+    return receipts
 
 @router.post("/", response=UserOut)
 def create_user(request, payload: UserCreateIn):
