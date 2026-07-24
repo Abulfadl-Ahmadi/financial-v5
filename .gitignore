@@ -2,6 +2,7 @@
 backend/.venv/
 backend/db.sqlite3
 backend/*.sqlite3
+__pycache__/
 
 # Frontend
 frontend/node_modules/
@@ -21,3 +22,5 @@ frontend/.tanstack/
 
 # OS
 .DS_Store
+
+.agents/
