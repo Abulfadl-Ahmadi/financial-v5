@@ -1,0 +1,23 @@
+# Backend
+backend/.venv/
+backend/db.sqlite3
+backend/*.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.tanstack/
+
+# Environment
+.env
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sw?
+
+# OS
+.DS_Store
