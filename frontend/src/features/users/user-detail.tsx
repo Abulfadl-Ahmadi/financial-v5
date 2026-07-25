@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -282,6 +283,15 @@ export function UserDetail() {
                           </TableRow>
                         ))}
                       </TableBody>
+                      <TableFooter>
+                        <TableRow className='font-bold bg-muted/50'>
+                          <TableCell colSpan={1} className='text-right'>Total:</TableCell>
+                          <TableCell className='font-mono text-emerald-600 dark:text-emerald-400'>
+                            {receipts.reduce((sum, rcp) => sum + (Number(rcp.amount) || 0), 0).toLocaleString()} تومان
+                          </TableCell>
+                          <TableCell colSpan={4} />
+                        </TableRow>
+                      </TableFooter>
                     </Table>
                   </div>
                 )}
