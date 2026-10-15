@@ -10,17 +10,26 @@ from apps.financial.schemas import (
 from apps.users.models import User, Party, PartyKind
 from apps.financial.ownership import CardConflict, normalize_card, get_user_party, register_card, create_external_card, snapshot_receipt_owners
 from django.db import transaction
+from ninja_jwt.authentication import JWTAuth
 from django.db.models import Q, Sum
 
 router = Router(tags=["Financial & Accounts (حسابداری و فیش‌ها)"])
 
-@router.get("/accounts", response=List[AccountOut])
+
+def require_finance_manager(request):
+    if request.user.role not in ('OWNER', 'ACCOUNTANT'):
+        raise HttpError(403, 'Financial management permission required')
+
+
+@router.get("/accounts", response=List[AccountOut], auth=JWTAuth())
 def list_accounts(request):
+    require_finance_manager(request)
     return Account.objects.select_related('owner', 'user').all().order_by('-is_active', '-id')
 
-@router.post("/accounts", response=AccountOut)
+@router.post("/accounts", response=AccountOut, auth=JWTAuth())
 @transaction.atomic
 def create_account(request, payload: AccountIn):
+    require_finance_manager(request)
     user = User.objects.filter(id=payload.user_id).first() if payload.user_id else None
     if payload.user_id and not user:
         raise HttpError(404, 'User not found')
@@ -51,9 +60,10 @@ def create_account(request, payload: AccountIn):
         transaction.set_rollback(True)
         raise HttpError(409 if isinstance(exc, CardConflict) else 400, str(exc)) from exc
 
-@router.put("/accounts/{account_id}", response=AccountOut)
+@router.put("/accounts/{account_id}", response=AccountOut, auth=JWTAuth())
 @transaction.atomic
 def update_account(request, account_id: int, payload: AccountUpdateIn):
+    require_finance_manager(request)
     try:
         account = Account.objects.get(id=account_id)
     except Account.DoesNotExist:
@@ -64,14 +74,9 @@ def update_account(request, account_id: int, payload: AccountUpdateIn):
             card = normalize_card(payload.card_number)
         except ValueError as exc:
             raise HttpError(400, str(exc)) from exc
-        if card != account.card_number and Receipt.objects.filter(Q(from_account=account) | Q(to_account=account)).exists():
-            raise HttpError(409, 'A card used by receipts cannot have its number rewritten; archive it and create a new card')
-        if card != account.card_number and Account.objects.filter(card_number=card).exclude(pk=account.pk).exists():
-            raise HttpError(409, 'This card is already registered')
-        account.card_number = card
-    if payload.card_number is not None and account.is_primary and account.owner_id and hasattr(account.owner, 'login_user'):
-        account.owner.login_user.card_number = account.card_number
-        account.owner.login_user.save(update_fields=['card_number'])
+        if card != account.card_number:
+            raise HttpError(409, 'Card identity is immutable; archive this card and register a new one')
+        # A normalized spelling of the same PAN is allowed; no mutation is needed.
     if payload.f_name is not None:
         account.f_name = payload.f_name
     if payload.l_name is not None:
@@ -84,14 +89,19 @@ def update_account(request, account_id: int, payload: AccountUpdateIn):
         else:
             raise HttpError(409, 'Account ownership changes require a reviewed transfer')
     if payload.is_workshop_account is not None:
-        if account.owner_id and account.owner.kind != PartyKind.WORKSHOP and payload.is_workshop_account:
+        if payload.is_workshop_account and (not account.owner_id or account.owner.kind != PartyKind.WORKSHOP):
             raise HttpError(409, 'Only a workshop-owned card may be a workshop paying account')
         account.is_workshop_account = payload.is_workshop_account
+    if payload.is_active is True and not account.is_active:
+        raise HttpError(409, 'Archived cards require reviewed reactivation')
     if payload.is_active is not None:
         account.is_active = payload.is_active
     if payload.is_primary is True:
         if not account.is_active:
             raise HttpError(400, 'An archived card cannot be primary')
+        if not account.owner_id:
+            raise HttpError(409, 'Card owner must be resolved before selecting a primary card')
+        Party.objects.select_for_update().get(pk=account.owner_id)
         Account.objects.filter(owner=account.owner, is_primary=True).exclude(pk=account.pk).update(is_primary=False)
         account.is_primary = True
     elif payload.is_primary is False:
@@ -108,8 +118,10 @@ def update_account(request, account_id: int, payload: AccountUpdateIn):
             login_user.save(update_fields=['card_number'])
     return account
 
-@router.delete("/accounts/{account_id}")
+@router.delete("/accounts/{account_id}", auth=JWTAuth())
+@transaction.atomic
 def delete_account(request, account_id: int):
+    require_finance_manager(request)
     try:
         account = Account.objects.get(id=account_id)
         account.is_active = False
@@ -124,13 +136,15 @@ def delete_account(request, account_id: int):
     except Account.DoesNotExist:
         raise HttpError(404, "Account not found")
 
-@router.get("/receipts", response=List[ReceiptOut])
+@router.get("/receipts", response=List[ReceiptOut], auth=JWTAuth())
 def list_receipts(request):
+    require_finance_manager(request)
     return Receipt.objects.select_related("from_account", "to_account").all().order_by("-created_at")
 
-@router.post("/receipts", response=ReceiptOut)
+@router.post("/receipts", response=ReceiptOut, auth=JWTAuth())
 @transaction.atomic
 def create_receipt(request, payload: ReceiptCreateIn):
+    require_finance_manager(request)
     try:
         from_acc = Account.objects.get(id=payload.from_account_id)
     except Account.DoesNotExist:
@@ -190,13 +204,15 @@ def create_receipt(request, payload: ReceiptCreateIn):
     )
     return receipt
 
-@router.put("/receipts/{receipt_id}", response=ReceiptOut)
+@router.put("/receipts/{receipt_id}", response=ReceiptOut, auth=JWTAuth())
 @transaction.atomic
 def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
+    require_finance_manager(request)
     try:
         receipt = Receipt.objects.get(id=receipt_id)
     except Receipt.DoesNotExist:
         raise HttpError(404, "Receipt not found")
+    original_account_ids = (receipt.from_account_id, receipt.to_account_id)
 
     if payload.from_account_id:
         try:
@@ -222,19 +238,19 @@ def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
         except (ValueError, CardConflict) as exc:
             transaction.set_rollback(True)
             raise HttpError(409 if isinstance(exc, CardConflict) else 400, str(exc)) from exc
-    accounts_changed = bool(payload.from_account_id or payload.to_account_id or payload.new_to_card_number)
+    accounts_changed = (receipt.from_account_id, receipt.to_account_id) != original_account_ids
     if receipt.from_account_id == receipt.to_account_id:
         raise HttpError(400, 'Source and destination must differ')
     if accounts_changed and (not receipt.from_account.is_active or not receipt.to_account.is_active):
         raise HttpError(400, 'Archived cards cannot be selected for a receipt')
-    for account in (receipt.from_account, receipt.to_account):
-        if account.owner_id is None:
-            account.owner = get_user_party(account.user) if account.user_id else Party.objects.create(
-                kind=PartyKind.EXTERNAL,
-                display_name=f'{account.f_name} {account.l_name}'.strip() or 'طرف حساب بیرونی',
-            )
-            account.save(update_fields=['owner'])
     if accounts_changed:
+        for account in (receipt.from_account, receipt.to_account):
+            if account.owner_id is None:
+                account.owner = get_user_party(account.user) if account.user_id else Party.objects.create(
+                    kind=PartyKind.EXTERNAL,
+                    display_name=f'{account.f_name} {account.l_name}'.strip() or 'طرف حساب بیرونی',
+                )
+                account.save(update_fields=['owner'])
         snapshot_receipt_owners(receipt)
 
     if payload.tracking_code is not None:
@@ -259,8 +275,9 @@ def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
     receipt.save()
     return receipt
 
-@router.post("/receipts/{receipt_id}/image", response=ReceiptOut)
+@router.post("/receipts/{receipt_id}/image", response=ReceiptOut, auth=JWTAuth())
 def upload_receipt_image(request, receipt_id: int, file: UploadedFile = File(...)):
+    require_finance_manager(request)
     try:
         receipt = Receipt.objects.get(id=receipt_id)
     except Receipt.DoesNotExist:
@@ -270,8 +287,9 @@ def upload_receipt_image(request, receipt_id: int, file: UploadedFile = File(...
     receipt.save()
     return receipt
 
-@router.delete("/receipts/{receipt_id}")
+@router.delete("/receipts/{receipt_id}", auth=JWTAuth())
 def delete_receipt(request, receipt_id: int):
+    require_finance_manager(request)
     try:
         receipt = Receipt.objects.get(id=receipt_id)
         receipt.delete()
@@ -279,8 +297,9 @@ def delete_receipt(request, receipt_id: int):
     except Receipt.DoesNotExist:
         raise HttpError(404, "Receipt not found")
 
-@router.get("/expenses", response=List[ExpenseOut])
+@router.get("/expenses", response=List[ExpenseOut], auth=JWTAuth())
 def list_expenses(request, category: str = None, start_date: str = None, end_date: str = None):
+    require_finance_manager(request)
     qs = Expense.objects.select_related("account").all().order_by("-created_at")
     if category:
         qs = qs.filter(category=category)
@@ -290,8 +309,9 @@ def list_expenses(request, category: str = None, start_date: str = None, end_dat
         qs = qs.filter(date_jalali__lte=end_date)
     return qs
 
-@router.post("/expenses", response=ExpenseOut)
+@router.post("/expenses", response=ExpenseOut, auth=JWTAuth())
 def create_expense(request, payload: ExpenseIn):
+    require_finance_manager(request)
     account = None
     if payload.account_id:
         try:
@@ -309,13 +329,15 @@ def create_expense(request, payload: ExpenseIn):
     )
     return expense
 
-@router.get("/expenses/summary")
+@router.get("/expenses/summary", auth=JWTAuth())
 def get_expenses_summary(request):
+    require_finance_manager(request)
     summary = Expense.objects.values('category').annotate(total_amount=Sum('amount'))
     return {item['category']: item['total_amount'] for item in summary}
 
-@router.put("/expenses/{expense_id}", response=ExpenseOut)
+@router.put("/expenses/{expense_id}", response=ExpenseOut, auth=JWTAuth())
 def update_expense(request, expense_id: int, payload: ExpenseUpdateIn):
+    require_finance_manager(request)
     try:
         expense = Expense.objects.get(id=expense_id)
     except Expense.DoesNotExist:
@@ -344,8 +366,9 @@ def update_expense(request, expense_id: int, payload: ExpenseUpdateIn):
     expense.save()
     return expense
 
-@router.delete("/expenses/{expense_id}")
+@router.delete("/expenses/{expense_id}", auth=JWTAuth())
 def delete_expense(request, expense_id: int):
+    require_finance_manager(request)
     try:
         expense = Expense.objects.get(id=expense_id)
         expense.delete()
@@ -353,8 +376,9 @@ def delete_expense(request, expense_id: int):
     except Expense.DoesNotExist:
         raise HttpError(404, "Expense not found")
 
-@router.get("/profitability-summary")
+@router.get("/profitability-summary", auth=JWTAuth())
 def get_profitability_summary(request):
+    require_finance_manager(request)
     from apps.sewing.models import ContractOrder, SewingJob
 
     contract_orders = ContractOrder.objects.all()

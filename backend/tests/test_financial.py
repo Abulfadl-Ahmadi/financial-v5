@@ -1,4 +1,7 @@
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from ninja_jwt.tokens import RefreshToken
+from apps.users.models import UserRole
 from apps.financial.models import Account, Receipt, ReceiptType, ReceiptStatus
 from decimal import Decimal
 
@@ -14,6 +17,9 @@ class FinancialTestCase(TestCase):
             l_name="مرادی",
             card_number="6104331122334455"
         )
+        manager = get_user_model().objects.create_user(username='financial-manager', password='test-password', role=UserRole.ACCOUNTANT)
+        token = str(RefreshToken.for_user(manager).access_token)
+        self.auth = {'HTTP_AUTHORIZATION': f'Bearer {token}'}
 
     def test_bin_bank_detection(self):
         """Test BIN card auto-detection of bank names."""
@@ -32,7 +38,7 @@ class FinancialTestCase(TestCase):
             "receipt_type": "SEWING_PAYROLL",
             "notes": "تسویه حساب فاز ۱"
         }
-        response = self.client.post("/api/financial/receipts", data=payload, content_type="application/json")
+        response = self.client.post("/api/financial/receipts", data=payload, content_type="application/json", **self.auth)
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["tracking_code"], "TRX-TEST-999")

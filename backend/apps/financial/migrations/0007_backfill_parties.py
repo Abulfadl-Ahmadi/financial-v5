@@ -49,16 +49,14 @@ def backwards(apps, schema_editor):
     # This reverse operation must be used only before writes to new Party data.
     # A production rollback after dual-write requires restoring the verified backup.
     User = apps.get_model('users', 'User')
-    Party = apps.get_model('users', 'Party')
     Account = apps.get_model('financial', 'Account')
     Receipt = apps.get_model('financial', 'Receipt')
     db = schema_editor.connection.alias
-    user_party_ids = set(User.objects.using(db).exclude(party_id__isnull=True).values_list('party_id', flat=True))
-    owner_ids = set(Account.objects.using(db).exclude(owner_id__isnull=True).values_list('owner_id', flat=True))
+    # The schema rollback removes the Party table later. Never delete parties
+    # here: a party created after this migration might own a receipt or card.
     Receipt.objects.using(db).update(from_party_id=None, to_party_id=None)
     Account.objects.using(db).update(owner_id=None, is_primary=False)
     User.objects.using(db).update(party_id=None)
-    Party.objects.using(db).filter(pk__in=user_party_ids | owner_ids).delete()
 
 
 class Migration(migrations.Migration):

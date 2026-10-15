@@ -33,13 +33,20 @@ class PartyApiTests(TestCase):
         worker_token = str(RefreshToken.for_user(self.worker).access_token)
         self.assertEqual(self.post_json('/api/users/parties', payload, HTTP_AUTHORIZATION=f'Bearer {worker_token}').status_code, 403)
 
+    def test_financial_routes_reject_anonymous_and_worker(self):
+        self.assertIn(self.client.get('/api/financial/accounts').status_code, (401, 403))
+        worker_token = str(RefreshToken.for_user(self.worker).access_token)
+        response = self.client.get('/api/financial/accounts', HTTP_AUTHORIZATION=f'Bearer {worker_token}')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.get('/api/financial/accounts', **self.auth).status_code, 200)
+
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
         response = self.post_json('/api/financial/receipts', {
             'tracking_code': 'T-1', 'date_jalali': '1405/01/01', 'amount': 500,
             'from_account_id': source.pk, 'to_account_id': dest.pk,
-        })
+        }, **self.auth)
         self.assertEqual(response.status_code, 200)
         receipt = Receipt.objects.get(pk=response.json()['id'])
         self.assertEqual(receipt.from_party, self.workshop)
@@ -50,7 +57,7 @@ class PartyApiTests(TestCase):
         other = Party.objects.create(display_name='دیگری')
         response = self.post_json('/api/financial/accounts', {
             'card_number': account.card_number, 'f_name': 'دیگری', 'l_name': 'شخص', 'party_id': other.pk,
-        })
+        }, **self.auth)
         self.assertEqual(response.status_code, 409)
         account.refresh_from_db()
         self.assertEqual(account.owner, self.recipient)

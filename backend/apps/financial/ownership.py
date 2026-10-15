@@ -1,7 +1,7 @@
 """Single write seam for party/card relationships and payment ownership."""
 import re
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from apps.users.models import Party, PartyKind
 from apps.financial.models import Account, Receipt
@@ -44,13 +44,17 @@ def register_card(*, party, number, first_name='', last_name='', primary=False, 
     else:
         if workshop and party.kind != PartyKind.WORKSHOP:
             raise CardConflict('Only workshop-owned cards can be workshop paying accounts')
-        account = Account.objects.create(
-            card_number=number, owner=party,
-            f_name=first_name or party.display_name,
-            l_name=last_name or '',
-            is_workshop_account=workshop,
-            user=party.login_user if hasattr(party, 'login_user') else None,
-        )
+        try:
+            with transaction.atomic():
+                account = Account.objects.create(
+                    card_number=number, owner=party,
+                    f_name=first_name or party.display_name,
+                    l_name=last_name or '',
+                    is_workshop_account=workshop,
+                    user=party.login_user if hasattr(party, 'login_user') else None,
+                )
+        except IntegrityError as exc:
+            raise CardConflict('This card was registered concurrently; retry after reviewing its owner') from exc
     if hasattr(party, 'login_user') and account.user_id != party.login_user.pk:
         account.user = party.login_user
         account.save(update_fields=['user'])
@@ -58,6 +62,9 @@ def register_card(*, party, number, first_name='', last_name='', primary=False, 
         account.is_workshop_account = True
         account.save(update_fields=['is_workshop_account'])
     if primary:
+        # PostgreSQL serializes primary-card selection on the owner row. SQLite
+        # serializes writers at the database level and keeps the unique index.
+        Party.objects.select_for_update().get(pk=party.pk)
         Account.objects.filter(owner=party, is_primary=True).exclude(pk=account.pk).update(is_primary=False)
         if not account.is_primary:
             account.is_primary = True
@@ -101,12 +108,8 @@ def create_external_card(*, number, first_name='', last_name='', user=None):
     number = normalize_card(number)
     existing = Account.objects.select_for_update().filter(card_number=number).first()
     if existing:
-        if user and existing.owner_id != get_user_party(user).pk:
-            raise CardConflict('This card belongs to another party')
-        if not user and existing.owner_id and existing.owner.kind != PartyKind.EXTERNAL:
-            raise CardConflict('Choose the registered owner instead of claiming their card')
-        if not user and existing.user_id:
-            raise CardConflict('Choose the registered user for this card')
+        if not user or existing.owner_id != get_user_party(user).pk:
+            raise CardConflict('Choose the existing registered card; receiving a payment never claims ownership')
         if not existing.is_active:
             raise CardConflict('Archived cards cannot be used for payments')
         return existing
