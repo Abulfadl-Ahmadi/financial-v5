@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -25,24 +25,30 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PasswordInput } from '@/components/password-input'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { roles } from '../data/data'
 import { type User } from '../data/schema'
+import { BankCardInput } from '@/components/ui/bank-card-input'
+import { normalizeCardNumber } from '@/lib/bank-utils'
+import { Plus, Trash2, CreditCard } from 'lucide-react'
 
 const formSchema = z
   .object({
     firstName: z.string().min(1, 'First Name is required.'),
     lastName: z.string().min(1, 'Last Name is required.'),
     username: z.string().min(1, 'Username is required.'),
-    email: z.string().optional().default(''),
-    phoneNumber: z.string().optional().default(''),
-    cardNumber: z.string().optional().default(''),
-    brandName: z.string().optional().default(''),
+    email: z.string().default(''),
+    phoneNumber: z.string().default(''),
+    cardNumber: z.string().default(''),
+    brandName: z.string().default(''),
     role: z.string().min(1, 'Role is required.'),
+    isActive: z.boolean().default(true),
     password: z.string().transform((pwd) => pwd.trim()),
     confirmPassword: z.string().transform((pwd) => pwd.trim()),
     isEdit: z.boolean(),
+    partyId: z.number().nullable().optional(),
   })
   .refine(
     (data) => {
@@ -82,18 +88,40 @@ export function UsersActionDialog({
 }: UserActionDialogProps) {
   const isEdit = !!currentRow
   const [isLoading, setIsLoading] = useState(false)
+  const [additionalCards, setAdditionalCards] = useState<string[]>([])
+  const [parties, setParties] = useState<{ id: number; display_name: string; kind: string }[]>([])
+
+  useEffect(() => {
+    if (open && !currentRow) {
+      apiClient.get('/users/parties')
+        .then((response) => setParties(Array.isArray(response.data) ? response.data : []))
+        .catch(() => {})
+    }
+    if (open && currentRow?.bank_accounts) {
+      const primary = currentRow.bank_accounts.find((account) => account.is_primary)?.card_number || ''
+      const extra = currentRow.bank_accounts
+        .filter((account) => account.is_active !== false)
+        .map((account) => account.card_number)
+        .filter((card) => card && card !== primary)
+      setAdditionalCards(extra)
+    } else if (open) {
+      setAdditionalCards([])
+    }
+  }, [open, currentRow])
 
   const form = useForm<UserForm>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     values: isEdit && currentRow
       ? {
           firstName: currentRow.first_name || '',
           lastName: currentRow.last_name || '',
           username: currentRow.username || '',
           email: currentRow.email || '',
-          role: currentRow.role || 'user',
+          role: currentRow.role || 'WORKER',
+          isActive: currentRow.is_active !== false,
           phoneNumber: currentRow.phone_number || '',
-          cardNumber: currentRow.card_number || '',
+          cardNumber: currentRow.bank_accounts?.find((account) => account.is_primary)?.card_number || '',
+          partyId: currentRow.party_id ?? null,
           brandName: currentRow.brand_name || '',
           password: '',
           confirmPassword: '',
@@ -104,15 +132,38 @@ export function UsersActionDialog({
           lastName: '',
           username: '',
           email: '',
-          role: 'owner',
+          role: 'WORKER',
+          isActive: true,
           phoneNumber: '',
           cardNumber: '',
+          partyId: null,
           brandName: '',
           password: '',
           confirmPassword: '',
           isEdit: false,
         },
   })
+
+  const handleAddExtraCard = () => {
+    setAdditionalCards((prev) => [...prev, ''])
+  }
+
+  const handleExtraCardChange = (index: number, val: string) => {
+    setAdditionalCards((prev) => {
+      const copy = [...prev]
+      copy[index] = normalizeCardNumber(val)
+      return copy
+    })
+  }
+
+  const handleRemoveExtraCard = (index: number) => {
+    const card = additionalCards[index]
+    if (isEdit && currentRow?.bank_accounts?.some((account) => account.card_number === card)) {
+      toast.error('کارت ثبت‌شده را از صفحهٔ حساب‌ها آرشیو کنید تا تاریخچهٔ فیش حفظ شود.')
+      return
+    }
+    setAdditionalCards((prev) => prev.filter((_, i) => i !== index))
+  }
 
   const onSubmit = async (values: UserForm) => {
     setIsLoading(true)
@@ -122,12 +173,25 @@ export function UsersActionDialog({
         first_name: values.firstName,
         last_name: values.lastName,
         role: values.role,
+        is_active: values.isActive,
         email: values.email || '',
         phone_number: values.phoneNumber || null,
-        card_number: values.cardNumber || null,
+        card_number: values.cardNumber ? normalizeCardNumber(values.cardNumber) : null,
         brand_name: values.brandName || null,
+        additional_cards: additionalCards.map(normalizeCardNumber).filter((card) => card.length === 16),
+      }
+      if (additionalCards.some((card) => card && normalizeCardNumber(card).length !== 16)) {
+        toast.error('شماره همه کارت‌های اضافه باید دقیقاً ۱۶ رقم باشد.')
+        return
+      }
+      if (values.cardNumber && normalizeCardNumber(values.cardNumber).length !== 16) {
+        toast.error('شماره کارت اصلی باید دقیقاً ۱۶ رقم باشد.')
+        return
       }
 
+      if (!isEdit && values.partyId) {
+        payload.party_id = values.partyId
+      }
       if (values.password) {
         payload.password = values.password
       }
@@ -141,12 +205,9 @@ export function UsersActionDialog({
       }
 
       form.reset()
+      setAdditionalCards([])
       onOpenChange(false)
-      if (onSuccess) {
-        onSuccess()
-      } else {
-        window.location.reload()
-      }
+      onSuccess?.()
     } catch (error: unknown) {
       let message = 'Failed to save user.'
       if (error instanceof AxiosError && error.response?.data?.detail) {
@@ -167,18 +228,18 @@ export function UsersActionDialog({
       open={open}
       onOpenChange={(state) => {
         form.reset()
+        setAdditionalCards([])
         onOpenChange(state)
       }}
     >
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader className='text-start'>
-          <DialogTitle>{isEdit ? 'Edit User' : 'Add New User'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit User / Tailor Profile' : 'Add New User / Tailor'}</DialogTitle>
           <DialogDescription>
-            {isEdit ? 'Update the user here. ' : 'Create new user here. '}
-            Click save when you&apos;re done.
+            {isEdit ? 'Update worker information and multiple bank cards.' : 'Register new tailor, contractor, or staff member.'}
           </DialogDescription>
         </DialogHeader>
-        <div className='h-105 w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3'>
+        <div className='h-110 w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3'>
           <Form {...form}>
             <form
               id='user-form'
@@ -237,6 +298,7 @@ export function UsersActionDialog({
                       <Input
                         placeholder='john_doe'
                         className='col-span-4'
+                        autoComplete='off'
                         {...field}
                       />
                     </FormControl>
@@ -249,11 +311,14 @@ export function UsersActionDialog({
                 name='email'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>Email</FormLabel>
+                    <FormLabel className='col-span-2 text-end'>
+                      Email
+                    </FormLabel>
                     <FormControl>
                       <Input
                         placeholder='john.doe@gmail.com'
                         className='col-span-4'
+                        autoComplete='off'
                         {...field}
                       />
                     </FormControl>
@@ -272,7 +337,7 @@ export function UsersActionDialog({
                     <FormControl>
                       <Input
                         placeholder='09121234567'
-                        className='col-span-4'
+                        className='col-span-4 font-mono'
                         {...field}
                       />
                     </FormControl>
@@ -280,25 +345,99 @@ export function UsersActionDialog({
                   </FormItem>
                 )}
               />
+
+              {!isEdit && (
+                <FormField
+                  control={form.control}
+                  name='partyId'
+                  render={({ field }) => (
+                    <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
+                      <FormLabel className='col-span-2 text-end'>طرف حساب مرتبط</FormLabel>
+                      <SelectDropdown
+                        defaultValue={field.value ? String(field.value) : 'new'}
+                        onValueChange={(value) => field.onChange(value === 'new' ? null : Number(value))}
+                        placeholder='انتخاب اختیاری شخص موجود'
+                        className='col-span-4'
+                        items={[
+                          { label: 'ساخت شخص جدید همزمان با کاربر', value: 'new' },
+                          ...parties.map((party) => ({ label: `${party.display_name} (${party.kind})`, value: String(party.id) })),
+                        ]}
+                      />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Primary Bank Card */}
               <FormField
                 control={form.control}
                 name='cardNumber'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
                     <FormLabel className='col-span-2 text-end'>
-                      Card Number
+                      Primary Bank Card
                     </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='6037...'
-                        className='col-span-4'
-                        {...field}
-                      />
-                    </FormControl>
+                    <div className='col-span-4'>
+                      <FormControl>
+                        <BankCardInput
+                          value={field.value || ''}
+                          onChange={(val) => field.onChange(val)}
+                          placeholder='---- ---- ---- ----'
+                        />
+                      </FormControl>
+                    </div>
                     <FormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
               />
+
+              {/* Multiple Bank Accounts Section */}
+              <div className='p-3 rounded-lg border border-border/70 bg-muted/20 space-y-2.5'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs font-semibold text-foreground flex items-center gap-1.5'>
+                    <CreditCard className='h-3.5 w-3.5 text-primary' /> Additional Bank Accounts (حساب‌های دیگر خیاط)
+                  </span>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='text-[11px] h-6 px-2 gap-1'
+                    onClick={handleAddExtraCard}
+                  >
+                    <Plus className='h-3 w-3' /> Add Card
+                  </Button>
+                </div>
+
+                {additionalCards.length === 0 ? (
+                  <p className='text-[11px] text-muted-foreground'>
+                    No additional cards registered. Click Add Card if this person uses multiple bank accounts.
+                  </p>
+                ) : (
+                  <div className='space-y-2.5'>
+                    {additionalCards.map((card, idx) => (
+                      <div key={idx} className='flex items-start gap-2 bg-background/50 p-2 rounded-md border border-border/50'>
+                        <div className='flex-1'>
+                          <BankCardInput
+                            value={card}
+                            onChange={(val) => handleExtraCardChange(idx, val)}
+                            placeholder={`Card #${idx + 2} (16 digits)`}
+                          />
+                        </div>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon'
+                          className='size-8 mt-1 text-muted-foreground hover:text-destructive shrink-0'
+                          onClick={() => handleRemoveExtraCard(idx)}
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <FormField
                 control={form.control}
                 name='brandName'
@@ -340,6 +479,34 @@ export function UsersActionDialog({
               />
               <FormField
                 control={form.control}
+                name='isActive'
+                render={({ field }) => (
+                  <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1 pt-1'>
+                    <div className='col-span-4 col-start-3 flex items-start space-x-2 space-x-reverse'>
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          id='isActive'
+                        />
+                      </FormControl>
+                      <div className='grid gap-0.5 leading-none'>
+                        <label
+                          htmlFor='isActive'
+                          className='text-xs font-semibold cursor-pointer text-foreground'
+                        >
+                          اکانت فعال است (مشغول به کار در کارگاه)
+                        </label>
+                        <p className='text-[11px] text-muted-foreground'>
+                          در صورت غیرفعال کردن، خیاط یا پرسنل مرخص شده اما تمام سوابق، تسویه‌حساب‌ها و فیش‌ها بدون حذف حفظ خواهند شد.
+                        </p>
+                      </div>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name='password'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
@@ -367,8 +534,8 @@ export function UsersActionDialog({
                     </FormLabel>
                     <FormControl>
                       <PasswordInput
-                        disabled={!isPasswordTouched && isEdit}
-                        placeholder='Confirm password'
+                        disabled={!isPasswordTouched}
+                        placeholder={isEdit ? 'Leave empty to keep current' : 'Confirm password'}
                         className='col-span-4'
                         {...field}
                       />

@@ -1,6 +1,13 @@
 from django.db import models
 from django.conf import settings
 
+PERSIAN_TO_LATIN_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
+
+def to_latin_digits(val: str | None) -> str | None:
+    if not val:
+        return val
+    return str(val).translate(PERSIAN_TO_LATIN_DIGITS)
+
 BANK_CARD_BIN = {
     '603799': 'بانک ملی ایران',
     '589210': 'بانک سپه',
@@ -33,7 +40,16 @@ class Account(models.Model):
     l_name = models.CharField(max_length=100, verbose_name="نام خانوادگی")
     card_number = models.CharField(max_length=16, unique=True, verbose_name="شماره کارت (۱۶ رقمی)")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="bank_accounts", verbose_name="کاربر مرتبط")
+    owner = models.ForeignKey('users.Party', on_delete=models.PROTECT, null=True, blank=True, related_name='payment_cards')
+    is_primary = models.BooleanField(default=False, verbose_name='کارت اصلی طرف حساب')
+    is_active = models.BooleanField(default=True, verbose_name='کارت فعال')
+    is_workshop_account = models.BooleanField(default=False, verbose_name="حساب اصلی کارگاه / کارفرما")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['owner'], condition=models.Q(is_primary=True), name='one_primary_card_per_party'),
+        ]
 
     def __str__(self):
         return f"{self.f_name} {self.l_name} ({self.card_number[-4:]}) - {self.bank_name}"
@@ -49,6 +65,20 @@ class Account(models.Model):
         if len(num) == 16:
             return f"{num[:4]}-{num[4:8]}-{num[8:12]}-{num[12:]}"
         return num
+
+    @property
+    def user_role(self) -> str | None:
+        return self.user.role if self.user else None
+
+    @property
+    def is_workshop(self) -> bool:
+        return self.is_workshop_account and self.owner_id is not None and self.owner.kind == 'WORKSHOP'
+
+    @property
+    def user_full_name(self) -> str:
+        if self.user:
+            return self.user.get_full_name() or self.user.username
+        return f"{self.f_name} {self.l_name}".strip()
 
 class ReceiptType(models.TextChoices):
     CUTTING_PAYROLL = 'CUTTING_PAYROLL', 'تسویه اجرت برشکاری'
@@ -71,13 +101,64 @@ class Receipt(models.Model):
     
     from_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="outgoing_receipts", verbose_name="از حساب")
     to_account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name="incoming_receipts", verbose_name="به حساب")
+    from_party = models.ForeignKey('users.Party', on_delete=models.PROTECT, null=True, blank=True, related_name='sent_receipts')
+    to_party = models.ForeignKey('users.Party', on_delete=models.PROTECT, null=True, blank=True, related_name='received_receipts')
     
     amount = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="مبلغ (تومان)")
     receipt_type = models.CharField(max_length=30, choices=ReceiptType.choices, default=ReceiptType.OTHER, verbose_name="نوع تراکنش")
     status = models.CharField(max_length=20, choices=ReceiptStatus.choices, default=ReceiptStatus.PENDING, verbose_name="وضعیت فیش")
+    image = models.ImageField(upload_to="receipts/", blank=True, null=True, verbose_name="تصویر فیش واریزی")
     
     notes = models.TextField(blank=True, null=True, verbose_name="توضیحات و بابت")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت در سیستم")
 
+    def save(self, *args, **kwargs):
+        if self.date_jalali:
+            self.date_jalali = to_latin_digits(self.date_jalali)
+        if self.tracking_code:
+            self.tracking_code = to_latin_digits(self.tracking_code)
+        if self.time_str:
+            self.time_str = to_latin_digits(self.time_str)
+        if self._state.adding:
+            if self.from_account_id and not self.from_party_id:
+                self.from_party_id = self.from_account.owner_id
+            if self.to_account_id and not self.to_party_id:
+                self.to_party_id = self.to_account.owner_id
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"فیش {self.tracking_code} - {self.amount:,} تومان ({self.date_jalali})"
+
+    @property
+    def receipt_image(self) -> str | None:
+        if self.image:
+            return self.image.url
+        return None
+
+class ExpenseCategory(models.TextChoices):
+    RENT = 'RENT', 'اجاره مکان کارگاه'
+    ELECTRICITY = 'ELECTRICITY', 'قبض برق'
+    WATER = 'WATER', 'قبض آب'
+    GAS = 'GAS', 'قبض گاز - دیگ بخار و آشپزخانه'
+    SUPPLIES = 'SUPPLIES', 'ملزومات دوخت - نخ، سوزن، روغن چرخ'
+    MAINTENANCE = 'MAINTENANCE', 'تعمیر چرخ‌ها، دیگ بخار، برق‌کشی و روشنایی'
+    WELFARE = 'WELFARE', 'چای، قند و پذیرایی کارگران'
+    CLEANING = 'CLEANING', 'نظافت و بهداشت کارگاه'
+    OTHER = 'OTHER', 'سایر هزینه‌ها'
+
+class Expense(models.Model):
+    title = models.CharField(max_length=200, verbose_name="عنوان هزینه")
+    category = models.CharField(max_length=50, choices=ExpenseCategory.choices, default=ExpenseCategory.OTHER)
+    amount = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="مبلغ به تومان")
+    date_jalali = models.CharField(max_length=10, verbose_name="تاریخ شمسی")
+    account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.date_jalali:
+            self.date_jalali = to_latin_digits(self.date_jalali)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.title} - {self.amount:,} تومان ({self.date_jalali})"

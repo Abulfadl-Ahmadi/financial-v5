@@ -1,30 +1,57 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
+from apps.financial.models import ReceiptType, ReceiptStatus
+
+
+def valid_receipt_type(value: str) -> str:
+    if value not in ReceiptType.values:
+        raise ValueError('Invalid receipt category')
+    return value
+
+
+def valid_receipt_status(value: str) -> str:
+    if value not in ReceiptStatus.values:
+        raise ValueError('Invalid receipt status')
+    return value
 
 class AccountOut(BaseModel):
     id: int
+    owner_id: Optional[int] = None
+    is_primary: bool = False
+    is_active: bool = True
     f_name: str
     l_name: str
     card_number: str
     bank_name: str
     formatted_card_number: str
+    user_id: Optional[int] = None
+    user_role: Optional[str] = None
+    user_full_name: Optional[str] = None
+    is_workshop: bool = False
 
     class Config:
         from_attributes = True
 
 class AccountIn(BaseModel):
-    f_name: str
-    l_name: str
+    f_name: Optional[str] = None
+    l_name: Optional[str] = None
     card_number: str
     user_id: Optional[int] = None
+    party_id: Optional[int] = None
+    is_primary: bool = False
+    is_workshop_account: Optional[bool] = False
 
 class AccountUpdateIn(BaseModel):
     f_name: Optional[str] = None
     l_name: Optional[str] = None
     card_number: Optional[str] = None
     user_id: Optional[int] = None
+    party_id: Optional[int] = None
+    is_primary: Optional[bool] = None
+    is_active: Optional[bool] = None
+    is_workshop_account: Optional[bool] = None
 
 class ReceiptOut(BaseModel):
     id: int
@@ -35,9 +62,12 @@ class ReceiptOut(BaseModel):
     recovery_code: Optional[str] = None
     from_account: AccountOut
     to_account: AccountOut
+    from_party_id: Optional[int] = None
+    to_party_id: Optional[int] = None
     amount: Decimal
     receipt_type: str
     status: str
+    receipt_image: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
 
@@ -51,12 +81,31 @@ class ReceiptCreateIn(BaseModel):
     atm_id: Optional[str] = None
     recovery_code: Optional[str] = None
     from_account_id: int
-    to_account_id: int
+    to_account_id: Optional[int] = None
+    new_to_card_number: Optional[str] = None
+    new_to_f_name: Optional[str] = None
+    new_to_l_name: Optional[str] = None
+    user_id: Optional[int] = None
     amount: Decimal
     receipt_type: str = "OTHER"
+    status: Optional[str] = "VERIFIED"
     notes: Optional[str] = None
 
+    @field_validator('receipt_type')
+    @classmethod
+    def check_type(cls, value):
+        return valid_receipt_type(value)
+
+    @field_validator('status')
+    @classmethod
+    def check_status(cls, value):
+        return valid_receipt_status(value) if value is not None else value
+
 class ReceiptUpdateIn(BaseModel):
+    new_to_card_number: Optional[str] = None
+    new_to_f_name: Optional[str] = None
+    new_to_l_name: Optional[str] = None
+    user_id: Optional[int] = None
     tracking_code: Optional[str] = None
     date_jalali: Optional[str] = None
     time_str: Optional[str] = None
@@ -67,4 +116,43 @@ class ReceiptUpdateIn(BaseModel):
     amount: Optional[Decimal] = None
     receipt_type: Optional[str] = None
     status: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator('receipt_type')
+    @classmethod
+    def check_type(cls, value):
+        return valid_receipt_type(value) if value is not None else value
+
+    @field_validator('status')
+    @classmethod
+    def check_status(cls, value):
+        return valid_receipt_status(value) if value is not None else value
+
+class ExpenseOut(BaseModel):
+    id: int
+    title: str
+    category: str
+    amount: Decimal
+    date_jalali: str
+    account: Optional[AccountOut] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ExpenseIn(BaseModel):
+    title: str
+    category: str = "OTHER"
+    amount: Decimal
+    date_jalali: str
+    account_id: Optional[int] = None
+    notes: Optional[str] = None
+
+class ExpenseUpdateIn(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[Decimal] = None
+    date_jalali: Optional[str] = None
+    account_id: Optional[int] = None
     notes: Optional[str] = None

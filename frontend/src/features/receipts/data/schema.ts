@@ -7,6 +7,8 @@ export const receiptAccountSchema = z.object({
   card_number: z.string().default(''),
   bank_name: z.string().default(''),
   formatted_card_number: z.string().default(''),
+  user_id: z.number().nullable().optional(),
+  user_full_name: z.string().nullable().optional(),
 })
 
 export const receiptSchema = z.object({
@@ -18,9 +20,12 @@ export const receiptSchema = z.object({
   recovery_code: z.string().nullable().optional().default(''),
   from_account: receiptAccountSchema,
   to_account: receiptAccountSchema,
+  from_party_id: z.number().nullable().optional(),
+  to_party_id: z.number().nullable().optional(),
   amount: z.number().or(z.string()),
   receipt_type: z.string().default('OTHER'),
   status: z.string().default('VERIFIED'),
+  receipt_image: z.string().nullable().optional().default(''),
   notes: z.string().nullable().optional().default(''),
   created_at: z.string().optional(),
 })
