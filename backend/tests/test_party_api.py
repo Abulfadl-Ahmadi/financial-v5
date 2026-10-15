@@ -62,6 +62,33 @@ class PartyApiTests(TestCase):
         account.refresh_from_db()
         self.assertEqual(account.owner, self.recipient)
 
+    def test_receipt_destination_can_be_party_without_login(self):
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        response = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-EXT', 'date_jalali': '1405/01/01', 'amount': 250,
+            'from_account_id': source.pk, 'new_to_card_number': '6104331122334455',
+            'party_id': self.recipient.pk,
+        }, **self.auth)
+        self.assertEqual(response.status_code, 200)
+        destination = Account.objects.get(card_number='6104331122334455')
+        self.assertEqual(destination.owner, self.recipient)
+        self.assertIsNone(destination.user_id)
+        self.assertEqual(Receipt.objects.get(pk=response.json()['id']).to_party_id, self.recipient.pk)
+
+    def test_receipt_destination_cannot_claim_someone_elses_card(self):
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        card = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
+        other = Party.objects.create(display_name='غیرمرتبط')
+        response = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-BLOCK', 'date_jalali': '1405/01/01', 'amount': 250,
+            'from_account_id': source.pk, 'new_to_card_number': card.card_number,
+            'party_id': other.pk,
+        }, **self.auth)
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(Receipt.objects.filter(tracking_code='T-BLOCK').exists())
+        card.refresh_from_db()
+        self.assertEqual(card.owner, self.recipient)
+
     def test_duplicate_card_conflict_rolls_back_user(self):
         account = Account.objects.create(card_number='6037997112345678', owner=self.recipient, f_name='مریم', l_name='ب')
         response = self.post_json('/api/users/', {

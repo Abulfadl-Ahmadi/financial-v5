@@ -160,10 +160,13 @@ def create_receipt(request, payload: ReceiptCreateIn):
         user = User.objects.filter(id=payload.user_id).first() if payload.user_id else None
         if payload.user_id and not user:
             raise HttpError(404, 'User not found')
+        party = Party.objects.filter(pk=payload.party_id).first() if payload.party_id else None
+        if payload.party_id and not party:
+            raise HttpError(404, 'Party not found')
         try:
             to_acc = create_external_card(
                 number=payload.new_to_card_number, first_name=payload.new_to_f_name or (user.first_name if user else ''),
-                last_name=payload.new_to_l_name or (user.last_name if user else ''), user=user,
+                last_name=payload.new_to_l_name or (user.last_name if user else ''), user=user, party=party,
             )
         except (ValueError, CardConflict) as exc:
             transaction.set_rollback(True)
@@ -229,11 +232,14 @@ def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
         user = User.objects.filter(id=payload.user_id).first() if payload.user_id else None
         if payload.user_id and not user:
             raise HttpError(404, 'User not found')
+        party = Party.objects.filter(pk=payload.party_id).first() if payload.party_id else None
+        if payload.party_id and not party:
+            raise HttpError(404, 'Party not found')
         try:
             receipt.to_account = create_external_card(
                 number=payload.new_to_card_number,
                 first_name=payload.new_to_f_name or (user.first_name if user else ''),
-                last_name=payload.new_to_l_name or (user.last_name if user else ''), user=user,
+                last_name=payload.new_to_l_name or (user.last_name if user else ''), user=user, party=party,
             )
         except (ValueError, CardConflict) as exc:
             transaction.set_rollback(True)

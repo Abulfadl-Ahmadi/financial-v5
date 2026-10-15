@@ -19,13 +19,19 @@ def normalize_card(value):
     return digits
 
 
+@transaction.atomic
 def get_user_party(user):
     if user.party_id:
         return user.party
+    locked = type(user).objects.select_for_update().get(pk=user.pk)
+    if locked.party_id:
+        user.party = locked.party
+        return locked.party
     name = f'{user.first_name} {user.last_name}'.strip() or user.username
     party = Party.objects.create(display_name=name, kind=PartyKind.ORGANIZATION if user.brand_name else PartyKind.PERSON)
+    locked.party = party
+    locked.save(update_fields=['party'])
     user.party = party
-    user.save(update_fields=['party'])
     return party
 
 
@@ -62,8 +68,7 @@ def register_card(*, party, number, first_name='', last_name='', primary=False, 
         account.is_workshop_account = True
         account.save(update_fields=['is_workshop_account'])
     if primary:
-        # PostgreSQL serializes primary-card selection on the owner row. SQLite
-        # serializes writers at the database level and keeps the unique index.
+        # Serialize changes for a party and rely on the unique partial index too.
         Party.objects.select_for_update().get(pk=party.pk)
         Account.objects.filter(owner=party, is_primary=True).exclude(pk=account.pk).update(is_primary=False)
         if not account.is_primary:
@@ -98,25 +103,29 @@ def register_user_cards(user, primary=None, additional=None):
     # The legacy field remains a compatibility mirror until all old clients migrate.
     if primary_number is None and user.card_number:
         Account.objects.filter(owner=party, is_primary=True).update(is_primary=False)
-    user.card_number = primary_number
-    user.save(update_fields=['card_number'])
+    if user.card_number != primary_number:
+        user.card_number = primary_number
+        user.save(update_fields=['card_number'])
     return party
 
 
 @transaction.atomic
-def create_external_card(*, number, first_name='', last_name='', user=None):
+def create_external_card(*, number, first_name='', last_name='', user=None, party=None):
+    """Create a card for a party with or without a login; never claim a known PAN."""
     number = normalize_card(number)
+    if party and user and get_user_party(user).pk != party.pk:
+        raise CardConflict('Selected party and login account disagree')
     existing = Account.objects.select_for_update().filter(card_number=number).first()
     if existing:
-        if not user or existing.owner_id != get_user_party(user).pk:
+        if (not party and not user) or existing.owner_id != (party.pk if party else get_user_party(user).pk):
             raise CardConflict('Choose the existing registered card; receiving a payment never claims ownership')
         if not existing.is_active:
             raise CardConflict('Archived cards cannot be used for payments')
         return existing
-    if user:
-        party = get_user_party(user)
-    else:
-        party = Party.objects.create(display_name=f'{first_name} {last_name}'.strip() or 'طرف حساب بیرونی', kind=PartyKind.EXTERNAL)
+    if party is None:
+        party = get_user_party(user) if user else Party.objects.create(
+            display_name=f'{first_name} {last_name}'.strip() or 'طرف حساب بیرونی', kind=PartyKind.EXTERNAL,
+        )
     return register_card(party=party, number=number, first_name=first_name, last_name=last_name)
 
 

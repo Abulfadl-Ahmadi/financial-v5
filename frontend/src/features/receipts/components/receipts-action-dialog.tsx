@@ -49,6 +49,8 @@ type AccountSimple = {
   user_full_name?: string
 }
 
+type PartySimple = { id: number; display_name: string; kind: string }
+
 type UserSimple = {
   id: number
   username: string
@@ -72,6 +74,7 @@ const formSchema = z.object({
   // Optional dynamic new card fields
   use_new_card: z.boolean().default(false),
   selected_user_id: z.coerce.number().optional().default(0),
+  selected_party_id: z.coerce.number().optional().default(0),
   new_to_card_number: z.string().optional().default(''),
   new_to_f_name: z.string().optional().default(''),
   new_to_l_name: z.string().optional().default(''),
@@ -100,6 +103,7 @@ export function ReceiptsActionDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [accounts, setAccounts] = useState<AccountSimple[]>([])
   const [users, setUsers] = useState<UserSimple[]>([])
+  const [parties, setParties] = useState<PartySimple[]>([])
   const [isNewCardMode, setIsNewCardMode] = useState(false)
   const [savedReceiptForUpload, setSavedReceiptForUpload] = useState<number | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -118,6 +122,9 @@ export function ReceiptsActionDialog({
       apiClient
         .get('/users/')
         .then((res) => setUsers(res.data))
+        .catch(() => { })
+      apiClient.get('/users/parties')
+        .then((res) => setParties(Array.isArray(res.data) ? res.data : []))
         .catch(() => { })
 
       // Preload image preview if exists
@@ -142,6 +149,7 @@ export function ReceiptsActionDialog({
         to_account_id: currentRow.to_account?.id || 0,
         use_new_card: false,
         selected_user_id: currentRow.to_account?.user_id || 0,
+        selected_party_id: 0,
         new_to_card_number: '',
         new_to_f_name: '',
         new_to_l_name: '',
@@ -158,6 +166,7 @@ export function ReceiptsActionDialog({
         to_account_id: 0,
         use_new_card: false,
         selected_user_id: 0,
+        selected_party_id: 0,
         new_to_card_number: '',
         new_to_f_name: '',
         new_to_l_name: '',
@@ -173,6 +182,7 @@ export function ReceiptsActionDialog({
   const handleUserSelect = (userIdStr: string) => {
     const uId = Number(userIdStr)
     form.setValue('selected_user_id', uId)
+    form.setValue('selected_party_id', 0)
     const user = users.find((u) => u.id === uId)
     if (user) {
       form.setValue('new_to_f_name', user.first_name || user.username)
@@ -238,6 +248,9 @@ export function ReceiptsActionDialog({
         payload.new_to_l_name = values.new_to_l_name || ''
         if (values.selected_user_id) {
           payload.user_id = values.selected_user_id
+        }
+        if (values.selected_party_id) {
+          payload.party_id = values.selected_party_id
         }
       } else {
         payload.to_account_id = values.to_account_id
@@ -539,6 +552,23 @@ export function ReceiptsActionDialog({
                         onValueChange={handleUserSelect}
                         placeholder='Select Tailor / Worker (e.g. Maryam Rezaei)'
                         items={userOptions}
+                      />
+                    </div>
+
+                    {/* A counterparty may exist without a login. */}
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium text-muted-foreground'>طرف حساب مستقل</label>
+                      <SelectDropdown
+                        defaultValue={form.watch('selected_party_id') ? String(form.watch('selected_party_id')) : 'new'}
+                        onValueChange={(value) => {
+                          form.setValue('selected_party_id', value === 'new' ? 0 : Number(value))
+                          form.setValue('selected_user_id', 0)
+                        }}
+                        placeholder='انتخاب طرف حساب یا ایجاد مورد بیرونی'
+                        items={[
+                          { label: 'طرف حساب بیرونی جدید', value: 'new' },
+                          ...parties.map((party) => ({ label: `${party.display_name} (${party.kind})`, value: String(party.id) })),
+                        ]}
                       />
                     </div>
 

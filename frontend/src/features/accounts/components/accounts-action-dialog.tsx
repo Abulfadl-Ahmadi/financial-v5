@@ -157,7 +157,6 @@ export function AccountsActionDialog({
       const payload = {
         f_name: values.f_name,
         l_name: values.l_name,
-        card_number: values.card_number,
         is_workshop_account: values.is_workshop_account,
         is_primary: values.is_primary,
       }
@@ -168,6 +167,7 @@ export function AccountsActionDialog({
       } else {
         await apiClient.post('/financial/accounts', {
           ...payload,
+          card_number: values.card_number,
           party_id: values.party_id || undefined,
           user_id: values.user_id || undefined,
         })
@@ -335,6 +335,7 @@ export function AccountsActionDialog({
                         <BankCardInput
                           value={field.value || ''}
                           onChange={field.onChange}
+                          disabled={isEdit}
                           placeholder='---- ---- ---- ----'
                         />
                       </FormControl>

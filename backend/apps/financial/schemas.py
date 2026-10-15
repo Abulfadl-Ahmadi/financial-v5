@@ -86,6 +86,7 @@ class ReceiptCreateIn(BaseModel):
     new_to_f_name: Optional[str] = None
     new_to_l_name: Optional[str] = None
     user_id: Optional[int] = None
+    party_id: Optional[int] = None
     amount: Decimal
     receipt_type: str = "OTHER"
     status: Optional[str] = "VERIFIED"
@@ -106,6 +107,7 @@ class ReceiptUpdateIn(BaseModel):
     new_to_f_name: Optional[str] = None
     new_to_l_name: Optional[str] = None
     user_id: Optional[int] = None
+    party_id: Optional[int] = None
     tracking_code: Optional[str] = None
     date_jalali: Optional[str] = None
     time_str: Optional[str] = None
