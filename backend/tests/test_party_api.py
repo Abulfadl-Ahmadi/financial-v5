@@ -104,6 +104,26 @@ class PartyApiTests(TestCase):
         account.refresh_from_db()
         self.assertIsNone(account.user)
 
+    def test_receipt_type_validation_aligns_with_domain_choices(self):
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
+
+        # Invalid legacy UI type like CARD_TO_CARD is rejected with 422
+        res_invalid = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-CAT-INV', 'date_jalali': '1405/01/01', 'amount': 100,
+            'from_account_id': source.pk, 'to_account_id': dest.pk,
+            'receipt_type': 'CARD_TO_CARD',
+        }, **self.auth)
+        self.assertEqual(res_invalid.status_code, 422)
+
+        # Valid domain choice like SEWING_PAYROLL is accepted
+        res_valid = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-CAT-VALID', 'date_jalali': '1405/01/01', 'amount': 100,
+            'from_account_id': source.pk, 'to_account_id': dest.pk,
+            'receipt_type': 'SEWING_PAYROLL',
+        }, **self.auth)
+        self.assertEqual(res_valid.status_code, 200)
+
     def test_same_name_users_do_not_leak_receipts(self):
         user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
         user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
