@@ -423,13 +423,26 @@ def delete_expense(request, expense_id: int):
 def get_profitability_summary(request):
     require_finance_manager(request)
     from apps.sewing.models import ContractOrder, SewingJob
+    from apps.financial.models import ReceiptType, ReceiptStatus
 
     contract_orders = ContractOrder.objects.all()
-    total_revenue = sum(order.total_revenue for order in contract_orders) or 0.0
+    contract_revenue = sum(order.total_revenue for order in contract_orders) or 0.0
 
-    if total_revenue == 0.0:
-        receipts_total = Receipt.objects.aggregate(total=Sum('amount'))['total'] or 0.0
-        total_revenue = float(receipts_total)
+    # Receipts revenue: Only VERIFIED deposits from producers or incoming to workshop accounts
+    verified_incoming_receipts = Receipt.objects.filter(
+        status=ReceiptStatus.VERIFIED
+    ).filter(
+        Q(receipt_type=ReceiptType.PRODUCER_PAYMENT) |
+        Q(to_account__is_workshop_account=True) |
+        Q(to_party__kind=PartyKind.WORKSHOP)
+    ).exclude(
+        receipt_type__in=[ReceiptType.SEWING_PAYROLL, ReceiptType.CUTTING_PAYROLL, ReceiptType.FABRIC_PURCHASE]
+    )
+
+    receipts_revenue = float(verified_incoming_receipts.aggregate(total=Sum('amount'))['total'] or 0.0)
+
+    # Use contract orders revenue if present, otherwise verified incoming receipts
+    total_revenue = contract_revenue if contract_revenue > 0.0 else receipts_revenue
 
     sewing_jobs = SewingJob.objects.all()
     total_payroll = sum(job.total_payable_amount for job in sewing_jobs) or 0.0

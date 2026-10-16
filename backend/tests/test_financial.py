@@ -44,3 +44,50 @@ class FinancialTestCase(TestCase):
         self.assertEqual(data["tracking_code"], "TRX-TEST-999")
         self.assertEqual(data["from_account"]["bank_name"], "بانک ملت")
         self.assertEqual(data["to_account"]["bank_name"], "بانک ملی ایران")
+
+    def test_profitability_summary_excludes_outgoing_and_rejected_receipts(self):
+        """Test Issue #6: Outgoing payroll and rejected receipts are not counted as workshop revenue."""
+        # Clean any existing receipts
+        Receipt.objects.all().delete()
+
+        # 1. Create an outgoing sewing payroll receipt (10,000,000 Toman)
+        Receipt.objects.create(
+            tracking_code="TRX-PAYROLL-01",
+            date_jalali="1405/01/01",
+            from_account=self.acc2,
+            to_account=self.acc1,
+            amount=Decimal("10000000"),
+            receipt_type=ReceiptType.SEWING_PAYROLL,
+            status=ReceiptStatus.VERIFIED
+        )
+
+        # 2. Create a REJECTED receipt (20,000,000 Toman)
+        Receipt.objects.create(
+            tracking_code="TRX-REJECTED-02",
+            date_jalali="1405/01/02",
+            from_account=self.acc1,
+            to_account=self.acc2,
+            amount=Decimal("20000000"),
+            receipt_type=ReceiptType.PRODUCER_PAYMENT,
+            status=ReceiptStatus.REJECTED
+        )
+
+        # Query summary -> totalRevenue must be 0
+        res = self.client.get("/api/financial/profitability-summary", **self.auth)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["totalRevenue"], 0.0)
+
+        # 3. Add a valid VERIFIED producer payment receipt (15,000,000 Toman)
+        Receipt.objects.create(
+            tracking_code="TRX-PRODUCER-03",
+            date_jalali="1405/01/03",
+            from_account=self.acc1,
+            to_account=self.acc2,
+            amount=Decimal("15000000"),
+            receipt_type=ReceiptType.PRODUCER_PAYMENT,
+            status=ReceiptStatus.VERIFIED
+        )
+
+        res2 = self.client.get("/api/financial/profitability-summary", **self.auth)
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.json()["totalRevenue"], 15000000.0)
