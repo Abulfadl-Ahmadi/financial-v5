@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
@@ -24,12 +24,42 @@ class AccountOut(BaseModel):
     f_name: str
     l_name: str
     card_number: str
+    last4: str
     bank_name: str
     formatted_card_number: str
     user_id: Optional[int] = None
     user_role: Optional[str] = None
     user_full_name: Optional[str] = None
     is_workshop: bool = False
+
+    @model_validator(mode='before')
+    @classmethod
+    def mask_card_fields(cls, value):
+        # Django Ninja passes ORM instances to Pydantic; never serialize raw PAN.
+        if hasattr(value, 'card_number') and not isinstance(value, dict):
+            number = value.card_number
+            masked = f'****-****-****-{number[-4:]}'
+            return {
+                'id': value.id,
+                'owner_id': value.owner_id,
+                'is_primary': value.is_primary,
+                'is_active': value.is_active,
+                'f_name': value.f_name,
+                'l_name': value.l_name,
+                'card_number': masked,
+                'last4': number[-4:],
+                'formatted_card_number': masked,
+                'bank_name': value.bank_name,
+                'user_id': value.user_id,
+                'user_role': value.user_role,
+                'user_full_name': value.user_full_name,
+                'is_workshop': value.is_workshop,
+            }
+        if isinstance(value, dict) and 'card_number' in value:
+            number = value['card_number']
+            value = {**value, 'last4': number[-4:], 'card_number': f'****-****-****-{number[-4:]}',
+                     'formatted_card_number': f'****-****-****-{number[-4:]}'}
+        return value
 
     class Config:
         from_attributes = True

@@ -57,6 +57,28 @@ class PartyApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.client.get('/api/financial/accounts', **self.auth).status_code, 200)
 
+    def test_card_pan_is_masked_in_account_user_and_receipt_responses(self):
+        account = Account.objects.create(card_number='6037997112345678', owner=self.recipient, f_name='مریم', l_name='ب')
+        login = User.objects.create_user(username='masked-worker', password='pw', role=UserRole.WORKER,
+                                         party=self.recipient, card_number=account.card_number)
+        account.user = login
+        account.save(update_fields=['user'])
+        source = Account.objects.create(card_number='6104331122334455', owner=self.workshop,
+                                        f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        Receipt.objects.create(tracking_code='MASKED', date_jalali='1405/01/01',
+                               from_account=source, to_account=account, amount=10)
+        paths = ['/api/financial/accounts', '/api/financial/receipts', '/api/users/',
+                 f'/api/users/{login.pk}', f'/api/users/{login.pk}/accounts',
+                 f'/api/users/{login.pk}/receipts', f'/api/users/parties/{self.recipient.pk}/accounts']
+        for path in paths:
+            with self.subTest(path=path):
+                result = self.client.get(path, **self.auth)
+                self.assertEqual(result.status_code, 200)
+                self.assertNotIn(account.card_number, result.content.decode())
+                self.assertNotIn(source.card_number, result.content.decode())
+        body = self.client.get('/api/financial/accounts', **self.auth).json()
+        self.assertEqual(next(row for row in body if row['id'] == account.pk)['last4'], '5678')
+
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional, List
 from apps.financial.schemas import AccountOut
 
@@ -15,6 +15,28 @@ class UserOut(BaseModel):
     card_number: Optional[str] = None
     brand_name: Optional[str] = None
     bank_accounts: Optional[List[AccountOut]] = []
+
+    @model_validator(mode='before')
+    @classmethod
+    def mask_legacy_primary(cls, value):
+        if hasattr(value, 'username') and not isinstance(value, dict):
+            return {
+                'id': value.pk,
+                'party_id': value.party_id,
+                'username': value.username,
+                'first_name': value.first_name,
+                'last_name': value.last_name,
+                'email': value.email,
+                'role': value.role,
+                'is_active': value.is_active,
+                'phone_number': value.phone_number,
+                'card_number': f'****-****-****-{value.card_number[-4:]}' if value.card_number else None,
+                'brand_name': value.brand_name,
+                'bank_accounts': value.bank_accounts,
+            }
+        if isinstance(value, dict) and value.get('card_number'):
+            value = {**value, 'card_number': f'****-****-****-{str(value["card_number"])[-4:]}'}
+        return value
 
     @field_validator('bank_accounts', mode='before')
     @classmethod

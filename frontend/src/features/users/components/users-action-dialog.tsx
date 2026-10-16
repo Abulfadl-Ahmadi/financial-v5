@@ -97,14 +97,7 @@ export function UsersActionDialog({
         .then((response) => setParties(Array.isArray(response.data) ? response.data : []))
         .catch(() => {})
     }
-    if (open && currentRow?.bank_accounts) {
-      const currentAccounts = currentRow.bank_accounts.filter((account) => account.is_active !== false)
-      const primary = currentAccounts.find((account) => account.is_primary)?.card_number || ''
-      const extra = currentAccounts
-        .map((account) => account.card_number)
-        .filter((card) => card && card !== primary)
-      setAdditionalCards(extra)
-    } else if (open) {
+    if (open) {
       setAdditionalCards([])
     }
   }, [open, currentRow])
@@ -120,7 +113,7 @@ export function UsersActionDialog({
           role: currentRow.role || 'WORKER',
           isActive: currentRow.is_active !== false,
           phoneNumber: currentRow.phone_number || '',
-          cardNumber: currentRow.bank_accounts?.find((account) => account.is_primary && account.is_active !== false)?.card_number || '',
+          cardNumber: '',
           partyId: currentRow.party_id ?? null,
           brandName: currentRow.brand_name || '',
           password: '',
@@ -157,11 +150,6 @@ export function UsersActionDialog({
   }
 
   const handleRemoveExtraCard = (index: number) => {
-    const card = additionalCards[index]
-    if (isEdit && currentRow?.bank_accounts?.some((account) => account.card_number === card)) {
-      toast.error('برای حذف انتساب کارت ثبت‌شده، آن را از صفحهٔ حساب‌ها آرشیو کنید تا فیش‌ها حفظ شوند.')
-      return
-    }
     setAdditionalCards((prev) => prev.filter((_, i) => i !== index))
   }
 
@@ -191,19 +179,6 @@ export function UsersActionDialog({
         payload.card_number = values.cardNumber ? normalizeCardNumber(values.cardNumber) : null
         payload.additional_cards = additionalCards.map(normalizeCardNumber).filter((card) => card.length === 16)
         if (values.partyId) payload.party_id = values.partyId
-      } else {
-        const originalPrimary = currentRow?.bank_accounts?.find((account) => account.is_primary && account.is_active !== false)?.card_number || ''
-        const nextPrimary = values.cardNumber ? normalizeCardNumber(values.cardNumber) : ''
-        if (originalPrimary !== nextPrimary) {
-          toast.error('تغییر کارت اصلی را از بخش مدیریت کارت‌ها انجام دهید.')
-          return
-        }
-        const existingCards = new Set((currentRow?.bank_accounts || []).map((account) => account.card_number))
-        const newCards = additionalCards.map(normalizeCardNumber).filter((card) => !existingCards.has(card))
-        if (newCards.length) {
-          payload.additional_cards = newCards
-          payload.card_number = originalPrimary || null
-        }
       }
       if (values.password) {
         payload.password = values.password
@@ -381,8 +356,8 @@ export function UsersActionDialog({
                 />
               )}
 
-              {/* Primary Bank Card */}
-              <FormField
+              {/* New users may register cards; existing users manage them in the card screen. */}
+              {!isEdit && <FormField
                 control={form.control}
                 name='cardNumber'
                 render={({ field }) => (
@@ -395,7 +370,6 @@ export function UsersActionDialog({
                         <BankCardInput
                           value={field.value || ''}
                           onChange={(val) => field.onChange(val)}
-                          disabled={isEdit}
                           placeholder='---- ---- ---- ----'
                         />
                       </FormControl>
@@ -403,10 +377,10 @@ export function UsersActionDialog({
                     <FormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
-              />
+              />}
 
               {/* Multiple Bank Accounts Section */}
-              <div className='p-3 rounded-lg border border-border/70 bg-muted/20 space-y-2.5'>
+              {!isEdit && <div className='p-3 rounded-lg border border-border/70 bg-muted/20 space-y-2.5'>
                 <div className='flex items-center justify-between'>
                   <span className='text-xs font-semibold text-foreground flex items-center gap-1.5'>
                     <CreditCard className='h-3.5 w-3.5 text-primary' /> Additional Bank Accounts (حساب‌های دیگر خیاط)
@@ -450,7 +424,7 @@ export function UsersActionDialog({
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
 
               <FormField
                 control={form.control}

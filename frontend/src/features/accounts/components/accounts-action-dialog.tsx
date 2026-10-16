@@ -48,10 +48,7 @@ const formSchema = z.object({
   is_primary: z.boolean(),
   f_name: z.string().min(1, 'First Name is required.'),
   l_name: z.string().min(1, 'Last Name is required.'),
-  card_number: z
-    .string()
-    .length(16, 'Card number must be exactly 16 digits.')
-    .regex(/^\d+$/, 'Card number must contain only numbers.'),
+  card_number: z.string(),
   is_workshop_account: z.boolean(),
 })
 
@@ -139,6 +136,10 @@ export function AccountsActionDialog({
   const onSubmit = async (values: AccountForm) => {
     setIsLoading(true)
     try {
+      if (!isEdit && !/^\d{16}$/.test(values.card_number)) {
+        toast.error('شماره کارت جدید باید دقیقاً ۱۶ رقم باشد.')
+        return
+      }
       const selectedParty = parties.find((party) => party.id === values.party_id)
       if (values.is_workshop_account && !isEdit && selectedParty?.kind !== 'WORKSHOP') {
         toast.error('برای حساب پرداخت کارگاه، طرف حساب «کارگاه» را انتخاب کنید.')
@@ -326,12 +327,15 @@ export function AccountsActionDialog({
                     </FormLabel>
                     <div className='col-span-4'>
                       <FormControl>
-                        <BankCardInput
-                          value={field.value || ''}
-                          onChange={field.onChange}
-                          disabled={isEdit}
-                          placeholder='---- ---- ---- ----'
-                        />
+                        {isEdit ? (
+                          <Input value={field.value || ''} disabled dir='ltr' className='font-mono' />
+                        ) : (
+                          <BankCardInput
+                            value={field.value || ''}
+                            onChange={field.onChange}
+                            placeholder='---- ---- ---- ----'
+                          />
+                        )}
                       </FormControl>
                     </div>
                     <FormMessage className='col-span-4 col-start-3' />
