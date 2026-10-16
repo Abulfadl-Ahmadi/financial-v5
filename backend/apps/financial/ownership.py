@@ -106,6 +106,7 @@ def register_user_cards(user, primary=None, additional=None):
                       last_name=user.last_name)
     # The legacy field remains a compatibility mirror until all old clients migrate.
     if primary_number is None and user.card_number:
+        Party.objects.select_for_update().get(pk=party.pk)
         Account.objects.filter(owner=party, is_primary=True).update(is_primary=False)
     if user.card_number != primary_number:
         user.card_number = primary_number

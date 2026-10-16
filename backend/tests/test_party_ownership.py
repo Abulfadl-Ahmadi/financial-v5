@@ -40,6 +40,15 @@ class PartyOwnershipTests(TestCase):
         self.assertEqual(list(receipts_for_party(same_name)), [])
         self.assertEqual(list(receipts_for_party(self.worker)), [receipt])
 
+    def test_receipt_is_in_both_directions_for_same_party_without_duplication(self):
+        second_card = register_card(party=self.worker, number='6037997112345679')
+        receipt = Receipt.objects.create(
+            tracking_code='own-transfer', date_jalali='1405/01/02',
+            from_account=self.destination, to_account=second_card, amount=50,
+            from_party=self.worker, to_party=self.worker,
+        )
+        self.assertEqual(list(receipts_for_party(self.worker)), [receipt])
+
     def test_persian_digits_are_normalized(self):
         self.assertEqual(normalize_card('۶۱۰۴-۳۳۱۱-۲۲۳۳-۴۴۵۵'), self.destination.card_number)
 
