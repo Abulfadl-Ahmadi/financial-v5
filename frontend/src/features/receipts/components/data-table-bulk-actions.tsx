@@ -1,7 +1,7 @@
 import { type Table } from '@tanstack/react-table'
 import { Trash2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { sleep } from '@/lib/utils'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -21,29 +21,37 @@ export function DataTableBulkActions<TData>({
   const selectedRows = table.getFilteredSelectedRowModel().rows
 
   const handleBulkVerify = () => {
-    const selectedReceipts = selectedRows.map((row) => row.original as Receipt)
-    toast.promise(sleep(1000), {
-      loading: 'Verifying receipts...',
-      success: () => {
+    const selectedIds = selectedRows.map((row) => (row.original as Receipt).id)
+    if (selectedIds.length === 0) return
+
+    toast.promise(
+      apiClient.post('/financial/receipts/bulk-verify', { ids: selectedIds }).then(() => {
         table.resetRowSelection()
-        return `Verified ${selectedReceipts.length} receipt${selectedReceipts.length > 1 ? 's' : ''}`
-      },
-      error: 'Error verifying receipts',
-    })
-    table.resetRowSelection()
+        window.location.reload()
+      }),
+      {
+        loading: 'تأیید فیش‌های انتخاب‌شده...',
+        success: `تعداد ${selectedIds.length} فیش با موفقیت تأیید شد.`,
+        error: 'خطا در تأیید گروهی فیش‌ها',
+      }
+    )
   }
 
   const handleBulkDelete = () => {
-    const selectedReceipts = selectedRows.map((row) => row.original as Receipt)
-    toast.promise(sleep(1000), {
-      loading: 'Deleting receipts...',
-      success: () => {
+    const selectedIds = selectedRows.map((row) => (row.original as Receipt).id)
+    if (selectedIds.length === 0) return
+
+    toast.promise(
+      apiClient.post('/financial/receipts/bulk-delete', { ids: selectedIds }).then(() => {
         table.resetRowSelection()
-        return `Deleted ${selectedReceipts.length} receipt${selectedReceipts.length > 1 ? 's' : ''}`
-      },
-      error: 'Error deleting receipts',
-    })
-    table.resetRowSelection()
+        window.location.reload()
+      }),
+      {
+        loading: 'حذف فیش‌های انتخاب‌شده...',
+        success: `تعداد ${selectedIds.length} فیش با موفقیت حذف شد.`,
+        error: 'خطا در حذف گروهی فیش‌ها',
+      }
+    )
   }
 
   return (

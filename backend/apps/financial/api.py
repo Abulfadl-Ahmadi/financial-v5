@@ -1,7 +1,7 @@
-from ninja import Router, File, UploadedFile
+from ninja import Router, File, UploadedFile, Schema
 from ninja.errors import HttpError
 from typing import List
-from apps.financial.models import Account, Receipt, Expense
+from apps.financial.models import Account, Receipt, Expense, ReceiptType, ReceiptStatus
 from apps.financial.schemas import (
     AccountOut, AccountIn, AccountUpdateIn, AccountRevealOut,
     ReceiptOut, ReceiptCreateIn, ReceiptUpdateIn,
@@ -234,6 +234,21 @@ def create_receipt(request, payload: ReceiptCreateIn):
         to_party_id=to_acc.owner_id,
     )
     return receipt
+
+class BulkActionIn(Schema):
+    ids: List[int]
+
+@router.post("/receipts/bulk-verify", auth=JWTAuth())
+def bulk_verify_receipts(request, payload: BulkActionIn):
+    require_finance_manager(request)
+    updated = Receipt.objects.filter(id__in=payload.ids).update(status=ReceiptStatus.VERIFIED)
+    return {"success": True, "count": updated}
+
+@router.post("/receipts/bulk-delete", auth=JWTAuth())
+def bulk_delete_receipts(request, payload: BulkActionIn):
+    require_finance_manager(request)
+    deleted, _ = Receipt.objects.filter(id__in=payload.ids).delete()
+    return {"success": True, "count": deleted}
 
 @router.put("/receipts/{receipt_id}", response=ReceiptOut, auth=JWTAuth())
 @transaction.atomic

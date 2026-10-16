@@ -135,3 +135,48 @@ class FinancialTestCase(TestCase):
 
         self.assertEqual(receipt_id1, receipt_id2)
         self.assertEqual(Receipt.objects.filter(tracking_code="TRX-IDEMPOTENT-01").count(), 1)
+
+    def test_bulk_verify_and_delete_receipts(self):
+        """Test Issue #9: Real backend mutations for bulk verify and bulk delete."""
+        r1 = Receipt.objects.create(
+            tracking_code="TRX-BULK-01",
+            date_jalali="1405/01/01",
+            from_account=self.acc2,
+            to_account=self.acc1,
+            amount=Decimal("1000000"),
+            status=ReceiptStatus.PENDING
+        )
+        r2 = Receipt.objects.create(
+            tracking_code="TRX-BULK-02",
+            date_jalali="1405/01/02",
+            from_account=self.acc2,
+            to_account=self.acc1,
+            amount=Decimal("2000000"),
+            status=ReceiptStatus.PENDING
+        )
+
+        # 1. Bulk verify
+        verify_res = self.client.post(
+            "/api/financial/receipts/bulk-verify",
+            data={"ids": [r1.id, r2.id]},
+            content_type="application/json",
+            **self.auth
+        )
+        self.assertEqual(verify_res.status_code, 200)
+        self.assertEqual(verify_res.json()["count"], 2)
+
+        r1.refresh_from_db()
+        r2.refresh_from_db()
+        self.assertEqual(r1.status, ReceiptStatus.VERIFIED)
+        self.assertEqual(r2.status, ReceiptStatus.VERIFIED)
+
+        # 2. Bulk delete
+        delete_res = self.client.post(
+            "/api/financial/receipts/bulk-delete",
+            data={"ids": [r1.id, r2.id]},
+            content_type="application/json",
+            **self.auth
+        )
+        self.assertEqual(delete_res.status_code, 200)
+        self.assertEqual(delete_res.json()["count"], 2)
+        self.assertFalse(Receipt.objects.filter(id__in=[r1.id, r2.id]).exists())
