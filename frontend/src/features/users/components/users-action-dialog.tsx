@@ -98,9 +98,9 @@ export function UsersActionDialog({
         .catch(() => {})
     }
     if (open && currentRow?.bank_accounts) {
-      const primary = currentRow.bank_accounts.find((account) => account.is_primary)?.card_number || ''
-      const extra = currentRow.bank_accounts
-        .filter((account) => account.is_active !== false)
+      const currentAccounts = currentRow.bank_accounts.filter((account) => account.is_active !== false)
+      const primary = currentAccounts.find((account) => account.is_primary)?.card_number || ''
+      const extra = currentAccounts
         .map((account) => account.card_number)
         .filter((card) => card && card !== primary)
       setAdditionalCards(extra)
@@ -120,7 +120,7 @@ export function UsersActionDialog({
           role: currentRow.role || 'WORKER',
           isActive: currentRow.is_active !== false,
           phoneNumber: currentRow.phone_number || '',
-          cardNumber: currentRow.bank_accounts?.find((account) => account.is_primary)?.card_number || '',
+          cardNumber: currentRow.bank_accounts?.find((account) => account.is_primary && account.is_active !== false)?.card_number || '',
           partyId: currentRow.party_id ?? null,
           brandName: currentRow.brand_name || '',
           password: '',
@@ -192,7 +192,7 @@ export function UsersActionDialog({
         payload.additional_cards = additionalCards.map(normalizeCardNumber).filter((card) => card.length === 16)
         if (values.partyId) payload.party_id = values.partyId
       } else {
-        const originalPrimary = currentRow?.bank_accounts?.find((account) => account.is_primary)?.card_number || ''
+        const originalPrimary = currentRow?.bank_accounts?.find((account) => account.is_primary && account.is_active !== false)?.card_number || ''
         const nextPrimary = values.cardNumber ? normalizeCardNumber(values.cardNumber) : ''
         if (originalPrimary !== nextPrimary) {
           toast.error('تغییر کارت اصلی را از بخش مدیریت کارت‌ها انجام دهید.')

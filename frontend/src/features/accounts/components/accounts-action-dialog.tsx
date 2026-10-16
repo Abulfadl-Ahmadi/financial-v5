@@ -38,7 +38,6 @@ type SimpleUser = {
   last_name: string
   role: string
   party_id?: number | null
-  card_number?: string
 }
 
 type PartyOption = { id: number; display_name: string; kind: string }
@@ -124,20 +123,15 @@ export function AccountsActionDialog({
     }
     const uid = Number(val)
     form.setValue('user_id', uid)
-    const linkedUser = users.find((u) => u.id === uid)
-    form.setValue('party_id', linkedUser?.party_id ?? null)
-    form.setValue('is_workshop_account', false)
-
     const selectedUser = users.find((u) => u.id === uid)
+    form.setValue('party_id', selectedUser?.party_id ?? null)
+    form.setValue('is_workshop_account', false)
     if (selectedUser) {
       if (!form.getValues('f_name')) {
         form.setValue('f_name', selectedUser.first_name || selectedUser.username)
       }
       if (!form.getValues('l_name')) {
         form.setValue('l_name', selectedUser.last_name || '')
-      }
-      if (!form.getValues('card_number') && selectedUser.card_number) {
-        form.setValue('card_number', selectedUser.card_number.replace(/\D/g, ''))
       }
     }
   }

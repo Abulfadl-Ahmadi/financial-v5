@@ -33,6 +33,23 @@ class PartyApiTests(TestCase):
         worker_token = str(RefreshToken.for_user(self.worker).access_token)
         self.assertEqual(self.post_json('/api/users/parties', payload, HTTP_AUTHORIZATION=f'Bearer {worker_token}').status_code, 403)
 
+    def test_only_owner_can_create_workshop_party(self):
+        accountant = User.objects.create_user(username='accountant-test', password='pw', role=UserRole.ACCOUNTANT)
+        token = str(RefreshToken.for_user(accountant).access_token)
+        payload = {'display_name': 'کارگاه تازه', 'kind': 'WORKSHOP'}
+        response = self.post_json('/api/users/parties', payload, HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.post_json('/api/users/parties', payload, **self.auth).status_code, 200)
+
+    def test_worker_cannot_create_financial_receipt(self):
+        worker_token = str(RefreshToken.for_user(self.worker).access_token)
+        response = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-ATTACK', 'date_jalali': '1405/01/01', 'amount': 1,
+            'from_account_id': 1, 'to_account_id': 2,
+        }, HTTP_AUTHORIZATION=f'Bearer {worker_token}')
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Receipt.objects.filter(tracking_code='T-ATTACK').exists())
+
     def test_financial_routes_reject_anonymous_and_worker(self):
         self.assertIn(self.client.get('/api/financial/accounts').status_code, (401, 403))
         worker_token = str(RefreshToken.for_user(self.worker).access_token)

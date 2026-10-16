@@ -39,6 +39,8 @@ def create_account(request, payload: AccountIn):
         party = Party.objects.filter(pk=payload.party_id).first()
         if not party:
             raise HttpError(404, 'Party not found')
+        if not party.is_active:
+            raise HttpError(409, 'Archived counterparties cannot receive new cards')
         if party.kind == PartyKind.WORKSHOP and user:
             raise HttpError(400, 'Workshop cards cannot be owned by an individual login')
     elif user:
@@ -178,6 +180,9 @@ def create_receipt(request, payload: ReceiptCreateIn):
         raise HttpError(400, 'Source and destination must differ')
     if not from_acc.is_active or not to_acc.is_active:
         raise HttpError(400, 'Archived cards cannot be used in a new receipt')
+    if ((from_acc.owner_id and not from_acc.owner.is_active) or
+            (to_acc.owner_id and not to_acc.owner.is_active)):
+        raise HttpError(400, 'An archived party cannot participate in a new receipt')
     # Older integrations may still insert Account rows without the new owner field.
     for account in (from_acc, to_acc):
         if account.owner_id is None:
@@ -249,6 +254,9 @@ def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
         raise HttpError(400, 'Source and destination must differ')
     if accounts_changed and (not receipt.from_account.is_active or not receipt.to_account.is_active):
         raise HttpError(400, 'Archived cards cannot be selected for a receipt')
+    if accounts_changed and ((receipt.from_account.owner_id and not receipt.from_account.owner.is_active) or
+                             (receipt.to_account.owner_id and not receipt.to_account.owner.is_active)):
+        raise HttpError(400, 'Archived parties cannot be selected for a receipt')
     if accounts_changed:
         for account in (receipt.from_account, receipt.to_account):
             if account.owner_id is None:

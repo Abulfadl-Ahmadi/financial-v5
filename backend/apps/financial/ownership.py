@@ -37,6 +37,8 @@ def get_user_party(user):
 
 @transaction.atomic
 def register_card(*, party, number, first_name='', last_name='', primary=False, workshop=False):
+    if not party.is_active:
+        raise CardConflict('Archived counterparties cannot receive new cards')
     number = normalize_card(number)
     existing = Account.objects.select_for_update().filter(card_number=number).first()
     if existing:
@@ -94,6 +96,8 @@ def register_user_cards(user, primary=None, additional=None):
         existing = Account.objects.select_for_update().filter(card_number=number).first()
         if existing and existing.owner_id != party.pk:
             raise CardConflict('This card is already registered for another party')
+        if existing and not existing.is_active:
+            raise CardConflict('An archived card cannot be reactivated implicitly')
     if primary_number:
         register_card(party=party, number=primary_number, first_name=user.first_name or user.username,
                       last_name=user.last_name, primary=True)
@@ -115,6 +119,8 @@ def create_external_card(*, number, first_name='', last_name='', user=None, part
     number = normalize_card(number)
     if party and user and get_user_party(user).pk != party.pk:
         raise CardConflict('Selected party and login account disagree')
+    if party and not party.is_active:
+        raise CardConflict('Archived counterparties cannot receive new cards')
     existing = Account.objects.select_for_update().filter(card_number=number).first()
     if existing:
         if (not party and not user) or existing.owner_id != (party.pk if party else get_user_party(user).pk):

@@ -20,9 +20,9 @@ class UserOut(BaseModel):
     @classmethod
     def convert_related_manager(cls, v):
         if hasattr(v, 'all'):
-            return list(v.all())
+            return list(v.filter(is_active=True))
         if isinstance(v, list):
-            return v
+            return [account for account in v if account.is_active]
         return []
 
     class Config:

@@ -57,7 +57,6 @@ type UserSimple = {
   first_name: string
   last_name: string
   role: string
-  card_number?: string
   bank_accounts?: AccountSimple[]
 }
 
@@ -348,10 +347,9 @@ export function ReceiptsActionDialog({
   }))
 
   // Get current selected user's cards
-  const selectedUserObj = users.find((u) => u.id === selectedUserId)
-  const selectedUserCards = accounts.filter(
-    (a) => a.user_id === selectedUserId || (selectedUserObj?.card_number && a.card_number === selectedUserObj.card_number)
-  )
+  const selectedUserCards = selectedUserId
+    ? accounts.filter((account) => account.user_id === selectedUserId && account.is_active !== false)
+    : []
 
   return (
     <Dialog
@@ -567,7 +565,7 @@ export function ReceiptsActionDialog({
                         placeholder='انتخاب طرف حساب یا ایجاد مورد بیرونی'
                         items={[
                           { label: 'طرف حساب بیرونی جدید', value: 'new' },
-                          ...parties.map((party) => ({ label: `${party.display_name} (${party.kind})`, value: String(party.id) })),
+                          ...parties.filter((party) => party.kind !== 'WORKSHOP').map((party) => ({ label: `${party.display_name} (${party.kind})`, value: String(party.id) })),
                         ]}
                       />
                     </div>

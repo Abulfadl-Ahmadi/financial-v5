@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { type User } from '../data/schema'
+import { roles } from '../data/data'
 import { useUsers } from './users-provider'
 
 type UsersDetailDialogProps = {
@@ -37,6 +38,11 @@ export function UsersDetailDialog({
     .toUpperCase()
     .slice(0, 2) || 'US'
 
+  const roleConfig = roles.find(
+    (r) => r.value.toUpperCase() === (currentRow.role || '').toUpperCase()
+  )
+  const RoleIcon = roleConfig?.icon
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
@@ -58,12 +64,36 @@ export function UsersDetailDialog({
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className='flex flex-col gap-1'>
+            <div className='flex flex-col gap-1.5'>
               <h3 className='text-lg font-bold leading-none'>{fullName}</h3>
-              <span className='font-mono text-sm text-muted-foreground'>@{currentRow.username}</span>
-              <div className='mt-1 flex items-center gap-2'>
-                <Badge variant='outline' className='capitalize font-mono text-xs'>
-                  {currentRow.role}
+              <span className='font-mono text-xs text-muted-foreground'>@{currentRow.username}</span>
+              <div className='flex flex-wrap items-center gap-2 pt-0.5'>
+                {/* Status Badge */}
+                {currentRow.is_active !== false ? (
+                  <Badge
+                    variant='outline'
+                    className='text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 dark:border-emerald-500/40 shadow-2xs flex items-center gap-1'
+                  >
+                    <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
+                    فعال
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant='outline'
+                    className='text-xs font-medium bg-slate-500/10 dark:bg-slate-500/20 text-slate-700 dark:text-slate-300 border-slate-500/30 dark:border-slate-500/40 shadow-2xs flex items-center gap-1'
+                  >
+                    <span className='size-1.5 rounded-full bg-slate-400' />
+                    غیرفعال
+                  </Badge>
+                )}
+
+                {/* Role Badge */}
+                <Badge
+                  variant='outline'
+                  className='text-xs font-medium bg-muted/60 dark:bg-muted/40 text-foreground border-border/80 flex items-center gap-1'
+                >
+                  {RoleIcon && <RoleIcon className='size-3 text-muted-foreground' />}
+                  <span>{roleConfig?.label || currentRow.role}</span>
                 </Badge>
               </div>
             </div>
@@ -76,8 +106,14 @@ export function UsersDetailDialog({
               <p className='font-mono font-medium'>#{currentRow.id}</p>
             </div>
             <div className='space-y-1'>
-              <span className='text-xs text-muted-foreground'>Role</span>
-              <p className='font-medium capitalize'>{currentRow.role}</p>
+              <span className='text-xs text-muted-foreground'>Status</span>
+              <p className='font-medium'>
+                {currentRow.is_active !== false ? (
+                  <span className='text-emerald-600 dark:text-emerald-400 font-semibold'>فعال (مشغول به کار)</span>
+                ) : (
+                  <span className='text-muted-foreground'>غیرفعال (مرخص شده)</span>
+                )}
+              </p>
             </div>
 
             <div className='space-y-1'>
@@ -87,7 +123,7 @@ export function UsersDetailDialog({
 
             <div className='space-y-1'>
               <span className='text-xs text-muted-foreground'>Card Number</span>
-              <p className='font-mono font-medium'>{currentRow.card_number || '-'}</p>
+              <p className='font-mono font-medium'>{currentRow.bank_accounts?.find((account) => account.is_primary && account.is_active !== false)?.formatted_card_number || '-'}</p>
             </div>
 
             <div className='col-span-2 space-y-1 border-t border-border pt-2'>

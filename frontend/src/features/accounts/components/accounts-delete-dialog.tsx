@@ -6,8 +6,6 @@ import { toast } from 'sonner'
 import { AxiosError } from 'axios'
 import { apiClient } from '@/lib/api-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { type Account } from '../data/schema'
 
@@ -24,7 +22,6 @@ export function AccountsDeleteDialog({
   currentRow,
   onSuccess,
 }: AccountDeleteDialogProps) {
-  const [value, setValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const holderName = `${currentRow.f_name} ${currentRow.l_name}`.trim()
 
@@ -32,7 +29,7 @@ export function AccountsDeleteDialog({
     setIsLoading(true)
     try {
       await apiClient.delete(`/financial/accounts/${currentRow.id}`)
-      toast.success('Account deleted successfully.')
+      toast.success('کارت آرشیو شد؛ تاریخچهٔ فیش‌ها حفظ شده است.')
       onOpenChange(false)
       if (onSuccess) {
         onSuccess()
@@ -64,7 +61,7 @@ export function AccountsDeleteDialog({
             className='me-1 inline-block stroke-destructive'
             size={18}
           />{' '}
-          Delete Account
+          Archive Card
         </span>
       }
       desc={
@@ -77,21 +74,20 @@ export function AccountsDeleteDialog({
           className='space-y-4'
         >
           <p className='mb-2'>
-            Are you sure you want to delete the account for{' '}
-            <span className='font-bold'>{holderName}</span> ({currentRow.card_number})?
+            کارت مربوط به <span className='font-bold'>{holderName}</span> ({currentRow.card_number}) آرشیو شود؟
             <br />
-            This action cannot be undone.
+            کارت در فیش‌های قدیمی باقی می‌ماند و برای پرداخت جدید قابل انتخاب نخواهد بود.
           </p>
 
           <Alert variant='destructive'>
             <AlertTitle>Warning!</AlertTitle>
             <AlertDescription>
-              Please be careful, this operation can not be rolled back.
+              آرشیو کارت و تاریخچهٔ فیش‌های مرتبط حفظ می‌شود.
             </AlertDescription>
           </Alert>
         </form>
       }
-      confirmText='Delete'
+      confirmText='Archive'
       destructive
     />
   )

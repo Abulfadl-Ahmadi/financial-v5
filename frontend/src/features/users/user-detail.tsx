@@ -107,7 +107,9 @@ export function UserDetail() {
     .toUpperCase()
     .slice(0, 2) || 'US'
 
-  const allCards = [...(user.bank_accounts || [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+  const allCards = [...(user.bank_accounts || [])]
+    .filter((account) => account.is_active !== false)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
   const verifiedReceipts = receipts.filter((receipt) => receipt.status === 'VERIFIED')
   const totalReceived = verifiedReceipts.reduce((sum, receipt) => sum + (receipt.to_party_id === user.party_id ? Number(receipt.amount) || 0 : 0), 0)
   const totalPaid = verifiedReceipts.reduce((sum, receipt) => sum + (receipt.from_party_id === user.party_id ? Number(receipt.amount) || 0 : 0), 0)
