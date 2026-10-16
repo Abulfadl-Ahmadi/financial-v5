@@ -562,3 +562,6 @@ def get_profitability_summary(request):
         "netProfit": net_profit,
         "overheadBreakdown": breakdown
     }
+
+from apps.financial.reconciliation.api import reconciliation_router
+router.add_router('reconciliation/', reconciliation_router)

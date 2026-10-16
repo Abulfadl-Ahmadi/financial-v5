@@ -191,3 +191,92 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.amount:,} تومان ({self.date_jalali})"
+
+
+class StatementImportStatus(models.TextChoices):
+    STAGED = 'STAGED', 'بارگذاری و استیج شده'
+    RECONCILED = 'RECONCILED', 'مغایرت‌گیری شده'
+    FAILED = 'FAILED', 'ناموفق'
+
+
+class BankStatementImport(models.Model):
+    """Import batch metadata for bank statements."""
+    deposit = models.ForeignKey(BankDeposit, on_delete=models.PROTECT, related_name='statement_imports')
+    filename = models.CharField(max_length=255)
+    file_hash = models.CharField(max_length=64, db_index=True)
+    from_date_jalali = models.CharField(max_length=20, blank=True, null=True)
+    to_date_jalali = models.CharField(max_length=20, blank=True, null=True)
+    total_rows = models.IntegerField(default=0)
+    total_credit_irr = models.DecimalField(max_digits=18, decimal_places=0, default=0)
+    total_debit_irr = models.DecimalField(max_digits=18, decimal_places=0, default=0)
+    status = models.CharField(max_length=20, choices=StatementImportStatus.choices, default=StatementImportStatus.STAGED)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.filename} ({self.deposit.deposit_number}) - {self.total_rows} rows"
+
+
+class TransactionCategory(models.TextChoices):
+    INTERNAL_TRANSFER = 'INTERNAL_TRANSFER', 'انتقال داخلی بین حساب‌ها'
+    PAYROLL_CANDIDATE = 'PAYROLL_CANDIDATE', 'کاندید دستمزد خیاطی'
+    SUPPLIER_CANDIDATE = 'SUPPLIER_CANDIDATE', 'کاندید خرید پارچه و ملزومات'
+    EXPENSE_CANDIDATE = 'EXPENSE_CANDIDATE', 'کاندید هزینه کارگاه'
+    POS_PURCHASE = 'POS_PURCHASE', 'خرید کارتخوان'
+    FEE = 'FEE', 'کارمزد بانکی'
+    UNKNOWN = 'UNKNOWN', 'تراکنش نامشخص'
+
+
+class ReviewDecision(models.TextChoices):
+    PENDING = 'PENDING', 'در انتظار بررسی'
+    MATCHED_EXISTING = 'MATCHED_EXISTING', 'تطبیق با فیش موجود'
+    APPROVED_POSTING = 'APPROVED_POSTING', 'تایید جهت ثبت رسمی'
+    IGNORED_INTERNAL = 'IGNORED_INTERNAL', 'نادیده گرفتن (انتقال داخلی)'
+    IGNORED_PERSONAL = 'IGNORED_PERSONAL', 'نادیده گرفتن (تراکنش شخصی)'
+
+
+class BankTransaction(models.Model):
+    """Normalized physical row from a bank statement staged for review."""
+    statement_import = models.ForeignKey(BankStatementImport, on_delete=models.CASCADE, related_name='transactions')
+    statement_row_num = models.IntegerField()
+    excel_row_num = models.IntegerField()
+    date_jalali = models.CharField(max_length=25)
+    description = models.TextField()
+    document_number = models.CharField(max_length=50, blank=True, null=True)
+    cheque_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="شماره برگه / چک")
+    reference_number = models.CharField(max_length=50, blank=True, null=True)
+    tracking_number = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    destination_card = models.CharField(max_length=16, blank=True, null=True, db_index=True)
+    sender_card = models.CharField(max_length=16, blank=True, null=True)
+    credit_irr = models.DecimalField(max_digits=18, decimal_places=0, default=0)
+    debit_irr = models.DecimalField(max_digits=18, decimal_places=0, default=0)
+    balance_irr = models.DecimalField(max_digits=18, decimal_places=0, default=0)
+    user_note = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=50, choices=TransactionCategory.choices, default=TransactionCategory.UNKNOWN)
+    matched_receipt = models.ForeignKey(Receipt, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_matches')
+    matched_expense = models.ForeignKey(Expense, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_matches')
+    paired_transaction = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='paired_reverse')
+    review_decision = models.CharField(max_length=30, choices=ReviewDecision.choices, default=ReviewDecision.PENDING)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_bank_txs')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, null=True)
+    fingerprint = models.CharField(max_length=64, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['statement_import', 'statement_row_num'], name='unique_row_per_import'),
+        ]
+
+    def __str__(self):
+        return f"{self.statement_import.deposit.deposit_number} #{self.statement_row_num} - {self.date_jalali}"
+
+
+class BankReconciliationAuditLog(models.Model):
+    """Audit log of decisions and financial postings made from bank transactions."""
+    transaction = models.ForeignKey(BankTransaction, on_delete=models.CASCADE, related_name='audit_logs')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    action = models.CharField(max_length=50)
+    previous_decision = models.CharField(max_length=30)
+    new_decision = models.CharField(max_length=30)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
