@@ -128,6 +128,35 @@ class PartyApiTests(TestCase):
         }), content_type='application/json', **self.auth)
         self.assertEqual(err2.status_code, 409)
 
+    def test_personal_account_of_owner_or_accountant_is_not_workshop_paying_account(self):
+        accountant = User.objects.create_user(username='acc-role-test', password='pw', role=UserRole.ACCOUNTANT)
+        acc_token = str(RefreshToken.for_user(accountant).access_token)
+
+        # Attempt to create an account for accountant party with is_workshop_account=True fails
+        err = self.post_json('/api/financial/accounts', {
+            'card_number': '6037997112345673',
+            'f_name': 'حسابدار',
+            'l_name': 'شخصی',
+            'user_id': accountant.pk,
+            'is_workshop_account': True,
+        }, HTTP_AUTHORIZATION=f'Bearer {acc_token}')
+        self.assertEqual(err.status_code, 409)
+
+        # Create as regular personal account
+        res = self.post_json('/api/financial/accounts', {
+            'card_number': '6037997112345673',
+            'f_name': 'حسابدار',
+            'l_name': 'شخصی',
+            'user_id': accountant.pk,
+            'is_workshop_account': False,
+        }, HTTP_AUTHORIZATION=f'Bearer {acc_token}')
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.json()['is_workshop'])
+
+        # Fetching accounts shows is_workshop is False
+        acc_obj = Account.objects.get(card_number='6037997112345673')
+        self.assertFalse(acc_obj.is_workshop)
+
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
