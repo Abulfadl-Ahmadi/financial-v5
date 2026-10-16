@@ -12,10 +12,6 @@ import {
   GalleryVerticalEnd,
   AudioWaveform,
   UserCog,
-  Wrench,
-  Palette,
-  Bell,
-  Monitor,
 } from '@/components/ui/icons'
 import { type SidebarData } from '../types'
 
@@ -95,6 +91,11 @@ export const sidebarData: SidebarData = {
         {
           title: 'Workshop Expenses',
           url: '/expenses',
+          icon: Receipt,
+        },
+        {
+          title: 'Bank Reconciliation (مغایرت‌گیری بانکی)',
+          url: '/reconciliation',
           icon: Receipt,
         },
       ],
