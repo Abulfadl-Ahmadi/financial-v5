@@ -1,4 +1,4 @@
-import { Shield, UserCheck, Users, CreditCard, Scissors, Package, DollarSign, Wrench } from 'lucide-react'
+import { Shield, Scissors, Package, DollarSign, Wrench, Sparkles, Shirt } from 'lucide-react'
 import { type UserStatus } from './schema'
 
 export const callTypes = new Map<UserStatus, string>([
@@ -21,15 +21,11 @@ export const callTypes = new Map<UserStatus, string>([
 ])
 
 export const roles = [
-  { label: 'Owner / Manager', value: 'owner', icon: Shield },
-  { label: 'Admin', value: 'admin', icon: UserCheck },
-  { label: 'Cutting Supervisor', value: 'cutting_supervisor', icon: Scissors },
-  { label: 'Sewing Supervisor', value: 'sewing_supervisor', icon: Wrench },
-  { label: 'Financial Manager', value: 'financial_manager', icon: DollarSign },
-  { label: 'Inventory Manager', value: 'inventory_manager', icon: Package },
-  { label: 'Cutter', value: 'cutter', icon: Scissors },
-  { label: 'Sewer', value: 'sewer', icon: Users },
-  { label: 'External Sewer', value: 'external_sewer', icon: Users },
-  { label: 'Customer', value: 'customer', icon: Users },
-  { label: 'Supplier', value: 'supplier', icon: Package },
+  { label: 'مدیر کل / کارفرما (Owner)', value: 'OWNER', icon: Shield },
+  { label: 'حسابدار (Accountant)', value: 'ACCOUNTANT', icon: DollarSign },
+  { label: 'سرپرست کارگاه برش (Cutting Supervisor)', value: 'CUTTING_SUPERVISOR', icon: Scissors },
+  { label: 'سرپرست کارگاه خیاطی (Sewing Supervisor)', value: 'SEWING_SUPERVISOR', icon: Wrench },
+  { label: 'انباردار پارچه (Warehouse Manager)', value: 'WAREHOUSE_MANAGER', icon: Package },
+  { label: 'اتوکار / پرس‌کار (Ironer / Presser)', value: 'IRONER', icon: Sparkles },
+  { label: 'خیاط / چرخکار / کارگر (Tailor / Worker)', value: 'WORKER', icon: Shirt },
 ] as const
