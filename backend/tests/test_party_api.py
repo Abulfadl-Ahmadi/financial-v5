@@ -124,6 +124,30 @@ class PartyApiTests(TestCase):
         }, **self.auth)
         self.assertEqual(res_valid.status_code, 200)
 
+    def test_archiving_card_removes_from_user_active_accounts_preserving_receipts(self):
+        user = User.objects.create_user(username='two-cards-user', password='pw', role=UserRole.WORKER)
+        card1 = register_card(party=get_user_party(user), number='6037997112345671', primary=True)
+        card2 = register_card(party=get_user_party(user), number='6037997112345672', primary=False)
+
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        Receipt.objects.create(tracking_code='T-ARCH-1', date_jalali='1405/01/01', from_account=source, to_account=card2, amount=100)
+
+        # Before archiving, user has 2 bank accounts
+        res_before = self.client.get(f'/api/users/{user.pk}', **self.auth)
+        self.assertEqual(len(res_before.json()['bank_accounts']), 2)
+
+        # Archive card2
+        del_res = self.client.delete(f'/api/financial/accounts/{card2.pk}', **self.auth)
+        self.assertEqual(del_res.status_code, 200)
+
+        # After archiving, user only has 1 active card
+        res_after = self.client.get(f'/api/users/{user.pk}', **self.auth)
+        self.assertEqual(len(res_after.json()['bank_accounts']), 1)
+        self.assertEqual(res_after.json()['bank_accounts'][0]['id'], card1.pk)
+
+        # Historical receipts on card2 are preserved
+        self.assertEqual(Receipt.objects.filter(tracking_code='T-ARCH-1', to_account=card2).count(), 1)
+
     def test_same_name_users_do_not_leak_receipts(self):
         user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
         user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
