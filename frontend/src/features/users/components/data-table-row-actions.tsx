@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, UserPen, Eye } from 'lucide-react'
+import { Trash2, UserPen, Eye, UserX, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { type User } from '../data/schema'
 import { useUsers } from './users-provider'
+import { apiClient } from '@/lib/api-client'
+import { toast } from 'sonner'
 
 type DataTableRowActionsProps = {
   row: Row<User>
@@ -20,6 +22,23 @@ type DataTableRowActionsProps = {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useUsers()
+  const user = row.original
+  const isActive = user.is_active !== false
+
+  const handleToggleActive = async () => {
+    try {
+      await apiClient.patch(`/users/${user.id}/toggle-active`)
+      toast.success(
+        isActive
+          ? `اکانت ${user.first_name || user.username} غیرفعال شد.`
+          : `اکانت ${user.first_name || user.username} فعال شد.`
+      )
+      window.location.reload()
+    } catch {
+      toast.error('خطا در تغییر وضعیت کاربر')
+    }
+  }
+
   return (
     <>
       <DropdownMenu modal={false}>
@@ -32,10 +51,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             <span className='sr-only'>Open menu</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-44'>
+        <DropdownMenuContent align='end' className='w-48'>
           <DropdownMenuItem asChild>
-            <Link to='/users/$userId' params={{ userId: String(row.original.id) }}>
-              View Profile Page
+            <Link to='/users/$userId' params={{ userId: String(user.id) }}>
+              مشاهده پروفایل
               <DropdownMenuShortcut>
                 <Eye size={16} />
               </DropdownMenuShortcut>
@@ -44,24 +63,41 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
-              setCurrentRow(row.original)
+              setCurrentRow(user)
               setOpen('edit')
             }}
           >
-            Edit
+            ویرایش اطلاعات
             <DropdownMenuShortcut>
               <UserPen size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleToggleActive}>
+            {isActive ? (
+              <>
+                <span className='text-amber-600 dark:text-amber-400'>غیرفعال‌سازی موقت</span>
+                <DropdownMenuShortcut>
+                  <UserX size={16} className='text-amber-600 dark:text-amber-400' />
+                </DropdownMenuShortcut>
+              </>
+            ) : (
+              <>
+                <span className='text-emerald-600 dark:text-emerald-400'>فعال‌سازی مجدد</span>
+                <DropdownMenuShortcut>
+                  <UserCheck size={16} className='text-emerald-600 dark:text-emerald-400' />
+                </DropdownMenuShortcut>
+              </>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
-              setCurrentRow(row.original)
+              setCurrentRow(user)
               setOpen('delete')
             }}
             className='text-red-500!'
           >
-            Delete
+            حذف کامل اکانت
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>
