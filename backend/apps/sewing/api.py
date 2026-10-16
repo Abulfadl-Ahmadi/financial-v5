@@ -1,3 +1,5 @@
+from django.db import transaction
+from django.db.models import Sum
 from ninja import Router
 from ninja.errors import HttpError
 from typing import List
@@ -26,13 +28,17 @@ def list_sewing_jobs(request):
     return SewingJob.objects.select_related("cut", "cut__owner", "sewer").all().order_by("-assigned_at")
 
 @router.post("/jobs", response=SewingJobOut)
+@transaction.atomic
 def create_sewing_job(request, payload: SewingJobCreateIn):
     require_sewing_supervisor(request)
+    if payload.assigned_pieces <= 0:
+        raise HttpError(400, "تعداد قطعات تحویلی باید بزرگتر از صفر باشد")
+
     if SewingJob.objects.filter(job_code=payload.job_code).exists():
         raise HttpError(400, "کد کار خیاطی تکراری است")
 
     try:
-        cut = Cut.objects.get(cut_code=payload.cut_code)
+        cut = Cut.objects.select_for_update().get(cut_code=payload.cut_code)
     except Cut.DoesNotExist:
         raise HttpError(404, "دستور برش یافت نشد")
 
@@ -40,6 +46,14 @@ def create_sewing_job(request, payload: SewingJobCreateIn):
         sewer = User.objects.get(id=payload.sewer_id)
     except User.DoesNotExist:
         raise HttpError(404, "خیاط یافت نشد")
+
+    already_assigned = cut.sewing_jobs.aggregate(Sum('assigned_pieces'))['assigned_pieces__sum'] or 0
+    remaining_capacity = cut.total_products - already_assigned
+    if payload.assigned_pieces > remaining_capacity:
+        raise HttpError(
+            400,
+            f"تعداد قطعات تحویلی ({payload.assigned_pieces}) از ظرفیت باقی‌مانده برش ({remaining_capacity} قطعه از مجموع {cut.total_products}) بیشتر است"
+        )
 
     job = SewingJob.objects.create(
         job_code=payload.job_code,
@@ -51,24 +65,35 @@ def create_sewing_job(request, payload: SewingJobCreateIn):
     return job
 
 @router.patch("/jobs/{job_id}/progress", response=SewingJobOut)
+@transaction.atomic
 def update_sewing_progress(request, job_id: int, payload: SewingProgressUpdateIn):
     user = require_authenticated(request)
     try:
-        job = SewingJob.objects.get(id=job_id)
+        job = SewingJob.objects.select_for_update().get(id=job_id)
     except SewingJob.DoesNotExist:
         raise HttpError(404, "کار خیاطی یافت نشد")
 
     if user.role not in (UserRole.OWNER, UserRole.SEWING_SUPERVISOR) and job.sewer_id != user.id:
         raise HttpError(403, "Permission denied for current user")
 
+    if payload.completed_pieces < 0 or payload.rejected_pieces < 0:
+        raise HttpError(400, "تعداد قطعات نمی‌تواند منفی باشد")
+
+    total_accounted = payload.completed_pieces + payload.rejected_pieces
+    if total_accounted > job.assigned_pieces:
+        raise HttpError(
+            400,
+            f"مجموع قطعات تکمیل‌شده ({payload.completed_pieces}) و ضایعات ({payload.rejected_pieces}) نمی‌تواند از تعداد کل قطعات تحویلی ({job.assigned_pieces}) بیشتر باشد"
+        )
+
     job.completed_pieces = payload.completed_pieces
     job.rejected_pieces = payload.rejected_pieces
-    
+
     if payload.status:
         job.status = payload.status
         if payload.status == SewingStatus.COMPLETED:
             job.completed_at = timezone.now()
-            
+
     job.save()
     return job
 
