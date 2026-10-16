@@ -4,7 +4,7 @@ import re
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from apps.users.models import Party, PartyKind
-from apps.financial.models import Account, Receipt
+from apps.financial.models import Account, Receipt, BankDeposit, CardOwnershipLog
 
 
 class CardConflict(ValueError):
@@ -148,3 +148,84 @@ def receipts_for_party(party):
     return Receipt.objects.filter(Q(from_party=party) | Q(to_party=party)).select_related(
         'from_account', 'to_account', 'from_account__owner', 'to_account__owner'
     ).distinct().order_by('-created_at')
+
+
+@transaction.atomic
+def register_bank_deposit(*, deposit_number, bank_name, owner, iban=None, title=None, is_workshop=False, verified_by=None):
+    """Register or get a legal bank deposit account for a party."""
+    if not owner.is_active:
+        raise ValueError('طرف حساب غیرفعال نمی‌تواند حساب بانکی داشته باشد')
+    if is_workshop and owner.kind != PartyKind.WORKSHOP:
+        raise CardConflict('تنها حساب‌های متعلق به طرف‌حساب کارگاه می‌توانند حساب کارگاهی باشند')
+
+    dep_num = str(deposit_number or '').translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')).strip()
+    if not dep_num:
+        raise ValueError('شماره حساب / سپرده الزامی است')
+
+    clean_iban = str(iban or '').strip() if iban else None
+    deposit, created = BankDeposit.objects.get_or_create(
+        deposit_number=dep_num,
+        defaults={
+            'bank_name': bank_name,
+            'owner': owner,
+            'iban': clean_iban,
+            'title': title,
+            'is_verified_workshop_account': is_workshop,
+            'verified_by': verified_by,
+        }
+    )
+    if not created:
+        if deposit.owner_id != owner.pk:
+            raise CardConflict('این شماره سپرده قبلاً برای طرف حساب دیگری ثبت شده است')
+        if is_workshop and not deposit.is_verified_workshop_account:
+            deposit.is_verified_workshop_account = True
+            deposit.verified_by = verified_by
+            deposit.save(update_fields=['is_verified_workshop_account', 'verified_by'])
+    return deposit
+
+
+@transaction.atomic
+def transfer_card_ownership(*, card, new_party, changed_by=None, reason=''):
+    """Audited transfer of card ownership from one party to another."""
+    if not new_party.is_active:
+        raise CardConflict('امکان انتقال کارت به طرف حساب غیرفعال وجود ندارد')
+    if card.owner_id == new_party.pk:
+        return card
+
+    old_party = card.owner
+    if card.is_workshop_account and new_party.kind != PartyKind.WORKSHOP:
+        card.is_workshop_account = False
+
+    if card.is_primary:
+        card.is_primary = False
+
+    card.owner = new_party
+    card.user = new_party.login_user if hasattr(new_party, 'login_user') else None
+    card.save()
+
+    CardOwnershipLog.objects.create(
+        card=card,
+        from_party=old_party,
+        to_party=new_party,
+        changed_by=changed_by,
+        reason=reason or 'Reviewed transfer of card ownership'
+    )
+    return card
+
+
+@transaction.atomic
+def verify_workshop_deposit(*, deposit_id, verified_by):
+    """Explicit verification of legal workshop ownership for a bank deposit."""
+    if getattr(verified_by, 'role', None) not in ('OWNER', 'ACCOUNTANT'):
+        raise PermissionError('تنها مدیر یا حسابدار می‌تواند حساب کارگاه را تایید کند')
+
+    deposit = BankDeposit.objects.select_for_update().get(id=deposit_id)
+    if deposit.owner.kind != PartyKind.WORKSHOP:
+        raise CardConflict('مالک حقوقی سپرده باید از نوع کارگاه باشد')
+
+    deposit.is_verified_workshop_account = True
+    deposit.verified_by = verified_by
+    from django.utils import timezone
+    deposit.verified_at = timezone.now()
+    deposit.save(update_fields=['is_verified_workshop_account', 'verified_by', 'verified_at'])
+    return deposit

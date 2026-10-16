@@ -35,12 +35,29 @@ BANK_CARD_BIN = {
     '639370': 'بانک مهر اقتصاد',
 }
 
+class BankDeposit(models.Model):
+    """Authoritative legal bank deposit / account / IBAN independent of 16-digit cards."""
+    deposit_number = models.CharField(max_length=50, unique=True, verbose_name="شماره حساب / سپرده")
+    iban = models.CharField(max_length=34, blank=True, null=True, verbose_name="شماره شبا (IBAN)")
+    bank_name = models.CharField(max_length=100, verbose_name="نام بانک")
+    title = models.CharField(max_length=200, blank=True, null=True, verbose_name="عنوان سپرده")
+    owner = models.ForeignKey('users.Party', on_delete=models.PROTECT, related_name='bank_deposits', verbose_name="طرف حساب مالک قانونی")
+    is_verified_workshop_account = models.BooleanField(default=False, verbose_name="تایید شده به‌عنوان حساب کارگاه")
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_deposits')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, verbose_name="حساب فعال")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.bank_name} - {self.deposit_number} ({self.owner.display_name})"
+
 class Account(models.Model):
     f_name = models.CharField(max_length=100, verbose_name="نام دارنده حساب")
     l_name = models.CharField(max_length=100, verbose_name="نام خانوادگی")
     card_number = models.CharField(max_length=16, unique=True, verbose_name="شماره کارت (۱۶ رقمی)")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="bank_accounts", verbose_name="کاربر مرتبط")
     owner = models.ForeignKey('users.Party', on_delete=models.PROTECT, null=True, blank=True, related_name='payment_cards')
+    deposit = models.ForeignKey(BankDeposit, on_delete=models.SET_NULL, null=True, blank=True, related_name='cards', verbose_name="سپرده بانکی مرتبط")
     is_primary = models.BooleanField(default=False, verbose_name='کارت اصلی طرف حساب')
     is_active = models.BooleanField(default=True, verbose_name='کارت فعال')
     is_workshop_account = models.BooleanField(default=False, verbose_name="حساب اصلی کارگاه / کارفرما")
@@ -79,6 +96,18 @@ class Account(models.Model):
         if self.user:
             return self.user.get_full_name() or self.user.username
         return f"{self.f_name} {self.l_name}".strip()
+
+class CardOwnershipLog(models.Model):
+    """Audit log of card ownership assignments and transfers."""
+    card = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='ownership_history')
+    from_party = models.ForeignKey('users.Party', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    to_party = models.ForeignKey('users.Party', on_delete=models.PROTECT, related_name='+')
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    reason = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Transfer {self.card.card_number[-4:]} from {self.from_party} to {self.to_party}"
 
 class ReceiptType(models.TextChoices):
     CUTTING_PAYROLL = 'CUTTING_PAYROLL', 'تسویه اجرت برشکاری'

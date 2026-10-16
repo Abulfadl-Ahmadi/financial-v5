@@ -383,3 +383,54 @@ class PartyApiTests(TestCase):
         user.refresh_from_db()
         self.assertFalse(user.is_active)
         self.assertTrue(Party.objects.filter(pk=self.recipient.pk).exists())
+
+    def test_bank_deposit_api_lifecycle_and_verification(self):
+        """Test Issue #35: API endpoints for creating, listing, and verifying bank deposits."""
+        # 1. Create a bank deposit via API
+        payload = {
+            'deposit_number': '1122334455',
+            'bank_name': 'بانک ملت',
+            'owner_id': self.workshop.pk,
+            'iban': 'IR112233445566778899001122',
+            'title': 'حساب عملیاتی کارگاه',
+        }
+        create_res = self.post_json('/api/financial/deposits', payload, **self.auth)
+        self.assertEqual(create_res.status_code, 200)
+        deposit_id = create_res.json()['id']
+        self.assertFalse(create_res.json()['is_verified_workshop_account'])
+
+        # 2. List deposits
+        list_res = self.client.get('/api/financial/deposits', **self.auth)
+        self.assertEqual(list_res.status_code, 200)
+        self.assertTrue(any(d['id'] == deposit_id for d in list_res.json()))
+
+        # 3. Verify workshop ownership by finance manager
+        verify_res = self.post_json(f'/api/financial/deposits/{deposit_id}/verify', {}, **self.auth)
+        self.assertEqual(verify_res.status_code, 200)
+        self.assertTrue(verify_res.json()['is_verified_workshop_account'])
+
+        # Non-workshop party cannot be verified as workshop account
+        person_party = Party.objects.create(display_name='شخص دیگر', kind=PartyKind.PERSON)
+        p_dep = self.post_json('/api/financial/deposits', {
+            'deposit_number': '9988776655',
+            'bank_name': 'بانک صادرات',
+            'owner_id': person_party.pk
+        }, **self.auth).json()['id']
+        err_verify = self.post_json(f'/api/financial/deposits/{p_dep}/verify', {}, **self.auth)
+        self.assertEqual(err_verify.status_code, 400)
+
+    def test_transfer_card_owner_api(self):
+        """Test Issue #28: Transfer card ownership API with audit logging."""
+        card = register_card(party=self.recipient, number='6037997112345688', first_name='مریم')
+        target_party = Party.objects.create(display_name='پرسنل جدید', kind=PartyKind.PERSON)
+
+        # Execute audited transfer
+        transfer_payload = {
+            'new_owner_party_id': target_party.pk,
+            'reason': 'تغییر دارنده حساب رسمی کارگاه'
+        }
+        res = self.post_json(f'/api/financial/accounts/{card.pk}/transfer-owner', transfer_payload, **self.auth)
+        self.assertEqual(res.status_code, 200)
+
+        card.refresh_from_db()
+        self.assertEqual(card.owner, target_party)

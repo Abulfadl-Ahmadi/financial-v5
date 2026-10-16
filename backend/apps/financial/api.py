@@ -1,14 +1,18 @@
 from ninja import Router, File, UploadedFile, Schema
 from ninja.errors import HttpError
 from typing import List
-from apps.financial.models import Account, Receipt, Expense, ReceiptType, ReceiptStatus
+from apps.financial.models import Account, Receipt, Expense, ReceiptType, ReceiptStatus, BankDeposit, CardOwnershipLog
 from apps.financial.schemas import (
     AccountOut, AccountIn, AccountUpdateIn, AccountRevealOut,
     ReceiptOut, ReceiptCreateIn, ReceiptUpdateIn,
-    ExpenseOut, ExpenseIn, ExpenseUpdateIn
+    ExpenseOut, ExpenseIn, ExpenseUpdateIn,
+    BankDepositIn, BankDepositOut, CardTransferIn
 )
 from apps.users.models import User, Party, PartyKind
-from apps.financial.ownership import CardConflict, normalize_card, get_user_party, register_card, create_external_card, snapshot_receipt_owners
+from apps.financial.ownership import (
+    CardConflict, normalize_card, get_user_party, register_card, create_external_card, snapshot_receipt_owners,
+    register_bank_deposit, transfer_card_ownership, verify_workshop_deposit
+)
 from django.db import transaction
 from ninja_jwt.authentication import JWTAuth
 from django.db.models import Q, Sum
@@ -148,6 +152,64 @@ def delete_account(request, account_id: int):
         return {'success': True, 'archived': True}
     except Account.DoesNotExist:
         raise HttpError(404, "Account not found")
+
+@router.post("/accounts/{account_id}/transfer-owner", response=AccountOut, auth=JWTAuth())
+def transfer_card_owner(request, account_id: int, payload: CardTransferIn):
+    require_finance_manager(request)
+    try:
+        account = Account.objects.get(id=account_id)
+    except Account.DoesNotExist:
+        raise HttpError(404, "Account not found")
+
+    try:
+        new_party = Party.objects.get(id=payload.new_owner_party_id)
+    except Party.DoesNotExist:
+        raise HttpError(404, "Target party not found")
+
+    try:
+        return transfer_card_ownership(
+            card=account,
+            new_party=new_party,
+            changed_by=request.user,
+            reason=payload.reason or 'Owner transfer via API'
+        )
+    except (ValueError, CardConflict) as exc:
+        raise HttpError(400, str(exc)) from exc
+
+@router.get("/deposits", response=List[BankDepositOut], auth=JWTAuth())
+def list_deposits(request):
+    require_finance_manager(request)
+    return BankDeposit.objects.select_related('owner').filter(is_active=True).order_by('-id')
+
+@router.post("/deposits", response=BankDepositOut, auth=JWTAuth())
+def create_deposit(request, payload: BankDepositIn):
+    require_finance_manager(request)
+    try:
+        owner = Party.objects.get(id=payload.owner_id)
+    except Party.DoesNotExist:
+        raise HttpError(404, "Owner party not found")
+
+    try:
+        return register_bank_deposit(
+            deposit_number=payload.deposit_number,
+            bank_name=payload.bank_name,
+            owner=owner,
+            iban=payload.iban,
+            title=payload.title,
+            is_workshop=payload.is_verified_workshop_account,
+            verified_by=request.user if payload.is_verified_workshop_account else None
+        )
+    except (ValueError, CardConflict) as exc:
+        raise HttpError(400, str(exc)) from exc
+
+@router.post("/deposits/{deposit_id}/verify", response=BankDepositOut, auth=JWTAuth())
+def verify_deposit(request, deposit_id: int):
+    require_finance_manager(request)
+    try:
+        return verify_workshop_deposit(deposit_id=deposit_id, verified_by=request.user)
+    except (BankDeposit.DoesNotExist, PermissionError, CardConflict) as exc:
+        status_code = 404 if isinstance(exc, BankDeposit.DoesNotExist) else 400
+        raise HttpError(status_code, str(exc)) from exc
 
 @router.get("/receipts", response=List[ReceiptOut], auth=JWTAuth())
 def list_receipts(request):

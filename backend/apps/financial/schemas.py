@@ -68,6 +68,32 @@ class AccountRevealOut(BaseModel):
     id: int
     card_number: str
 
+class BankDepositIn(BaseModel):
+    deposit_number: str
+    bank_name: str
+    owner_id: int
+    iban: Optional[str] = None
+    title: Optional[str] = None
+    is_verified_workshop_account: bool = False
+
+class BankDepositOut(BaseModel):
+    id: int
+    deposit_number: str
+    iban: Optional[str] = None
+    bank_name: str
+    title: Optional[str] = None
+    owner_id: int
+    is_verified_workshop_account: bool
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CardTransferIn(BaseModel):
+    new_owner_party_id: int
+    reason: Optional[str] = None
+
 class AccountIn(BaseModel):
     f_name: Optional[str] = None
     l_name: Optional[str] = None

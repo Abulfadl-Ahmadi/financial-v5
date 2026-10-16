@@ -1,9 +1,12 @@
 """Regression tests for the party/card ownership transition."""
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from apps.users.models import Party, PartyKind
-from apps.financial.models import Account, Receipt
-from apps.financial.ownership import CardConflict, register_card, receipts_for_party, normalize_card
+from apps.users.models import Party, PartyKind, UserRole
+from apps.financial.models import Account, Receipt, BankDeposit, CardOwnershipLog
+from apps.financial.ownership import (
+    CardConflict, register_card, receipts_for_party, normalize_card,
+    register_bank_deposit, transfer_card_ownership, verify_workshop_deposit
+)
 
 User = get_user_model()
 
@@ -60,3 +63,61 @@ class PartyOwnershipTests(TestCase):
     def test_workshop_card_rejects_person_owner(self):
         with self.assertRaises(CardConflict):
             register_card(party=self.worker, number='6037990000000001', workshop=True)
+
+    def test_bank_deposit_and_workshop_verification(self):
+        """Test Issue #35: Model bank deposit independently of card and verify workshop ownership."""
+        owner_user = User.objects.create_user(username="owner_dep_test", role=UserRole.OWNER)
+
+        # 1. Register a deposit for workshop
+        deposit = register_bank_deposit(
+            deposit_number="123-456-7890",
+            iban="IR123456789012345678901234",
+            bank_name="بانک ملت",
+            owner=self.workshop,
+            title="سپرده اصلی کارگاه"
+        )
+        self.assertFalse(deposit.is_verified_workshop_account)
+
+        # 2. Verify deposit by owner
+        verified = verify_workshop_deposit(deposit_id=deposit.id, verified_by=owner_user)
+        self.assertTrue(verified.is_verified_workshop_account)
+        self.assertEqual(verified.verified_by, owner_user)
+        self.assertIsNotNone(verified.verified_at)
+
+        # 3. Associate cards with the deposit
+        self.source.deposit = verified
+        self.source.save(update_fields=['deposit'])
+
+        card2 = register_card(party=self.workshop, number='6104330000000002')
+        card2.deposit = verified
+        card2.save(update_fields=['deposit'])
+
+        self.assertEqual(verified.cards.count(), 2)
+
+    def test_card_ownership_transfer_with_audit_trail(self):
+        """Test Issue #28: Card ownership transfer creates CardOwnershipLog and updates references cleanly."""
+        accountant = User.objects.create_user(username="acc_transfer", role=UserRole.ACCOUNTANT)
+        new_party = Party.objects.create(kind=PartyKind.PERSON, display_name="خیاط جدید")
+
+        card = register_card(party=self.worker, number='6037991122334499', primary=True)
+        self.assertTrue(card.is_primary)
+        self.assertEqual(card.owner, self.worker)
+
+        # Transfer ownership
+        transferred = transfer_card_ownership(
+            card=card,
+            new_party=new_party,
+            changed_by=accountant,
+            reason="انتقال کارت به پرسنل جدید"
+        )
+
+        self.assertEqual(transferred.owner, new_party)
+        self.assertFalse(transferred.is_primary) # Reset primary flag on transfer
+
+        # Check audit log
+        log = CardOwnershipLog.objects.filter(card=transferred).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.from_party, self.worker)
+        self.assertEqual(log.to_party, new_party)
+        self.assertEqual(log.changed_by, accountant)
+        self.assertIn("انتقال کارت", log.reason)
