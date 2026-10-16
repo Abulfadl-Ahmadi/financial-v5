@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 
 class FabricType(models.Model):
@@ -23,5 +24,22 @@ class ClothRoll(models.Model):
 
     def __str__(self):
         return f"{self.roll_code} - {self.fabric_type.name} ({self.color}) - {self.length_meters}m"
+
+    def consume(self, meters: Decimal):
+        """Consume meters from roll, updating remaining length and status atomically."""
+        if meters <= Decimal('0'):
+            raise ValueError("متراژ مصرفی باید مثبت و بزرگتر از صفر باشد")
+        if self.status == RollStatus.EXHAUSTED or self.length_meters <= Decimal('0'):
+            raise ValueError(f"طاقه {self.roll_code} قبلاً تمام شده است")
+        if meters > self.length_meters:
+            raise ValueError(
+                f"متراژ مصرفی ({meters} متر) بیشتر از موجودی طاقه {self.roll_code} ({self.length_meters} متر) است"
+            )
+        self.length_meters -= meters
+        if self.length_meters == Decimal('0'):
+            self.status = RollStatus.EXHAUSTED
+        else:
+            self.status = RollStatus.IN_CUTTING
+        self.save(update_fields=['length_meters', 'status'])
 
 from .maintenance_models import *
