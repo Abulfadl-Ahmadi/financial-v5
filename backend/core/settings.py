@@ -1,14 +1,35 @@
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-financial-garment-erp-secret-key-modern-v5'
+# Fast password hasher for test suite execution speed
+if 'test' in sys.argv:
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
 
-DEBUG = True
+DJANGO_ENV = os.environ.get('DJANGO_ENV', 'development')
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True' if DJANGO_ENV == 'development' else 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG or DJANGO_ENV == 'development':
+        SECRET_KEY = 'dev-secret-key-only-for-local-development-financial-v5-random-seed-phrase-not-for-prod'
+    else:
+        raise ImproperlyConfigured("In production, DJANGO_SECRET_KEY must be set to a secure, unique key with at least 50 characters.")
+elif len(SECRET_KEY) < 50 or SECRET_KEY.startswith('django-insecure-'):
+    if not DEBUG:
+        raise ImproperlyConfigured("Production DJANGO_SECRET_KEY must have at least 50 characters and not use insecure prefix.")
+
+raw_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS')
+if raw_hosts:
+    ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = ['*'] if DEBUG else ['localhost', '127.0.0.1', '[::1]']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -83,10 +104,26 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG and os.environ.get('DJANGO_CORS_ALLOW_ALL', 'True').lower() in ('true', '1')
+cors_origins_env = os.environ.get('DJANGO_CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
+CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins_env.split(',') if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
+
+# Production Security Configuration & SSL / Cookie Hardening
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', 'True').lower() in ('true', '1')
+    SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('DJANGO_SECURE_HSTS_SUBDOMAINS', 'True').lower() in ('true', '1')
+    SECURE_HSTS_PRELOAD = os.environ.get('DJANGO_SECURE_HSTS_PRELOAD', 'True').lower() in ('true', '1')
+    SESSION_COOKIE_SECURE = os.environ.get('DJANGO_SESSION_COOKIE_SECURE', 'True').lower() in ('true', '1')
+    CSRF_COOKIE_SECURE = os.environ.get('DJANGO_CSRF_COOKIE_SECURE', 'True').lower() in ('true', '1')
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 NINJA_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
