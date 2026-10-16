@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -44,15 +45,38 @@ export function Dashboard() {
   const [isExpenseOpen, setIsExpenseOpen] = useState(false)
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false)
   const [profitability, setProfitability] = useState<ProfitabilitySummary | null>(null)
+  const [contractOrdersCount, setContractOrdersCount] = useState(0)
+  const [inProductionPieces, setInProductionPieces] = useState(0)
+  const [activeMachines, setActiveMachines] = useState(0)
+  const [totalMachines, setTotalMachines] = useState(17)
   const [loading, setLoading] = useState(false)
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      const data = await financialServices.getProfitabilitySummary()
-      setProfitability(data)
+      const [profRes, ordersRes, machinesRes] = await Promise.allSettled([
+        financialServices.getProfitabilitySummary(),
+        apiClient.get('/sewing/contract-orders'),
+        apiClient.get('/inventory/machinery'),
+      ])
+
+      if (profRes.status === 'fulfilled') {
+        setProfitability(profRes.value)
+      }
+      if (ordersRes.status === 'fulfilled') {
+        const orders = ordersRes.value.data || []
+        const activeOrders = orders.filter((o: any) => o.status !== 'SETTLED')
+        setContractOrdersCount(activeOrders.length)
+        const pieces = activeOrders.reduce((sum: number, o: any) => sum + (Number(o.total_received_pieces) || 0), 0)
+        setInProductionPieces(pieces)
+      }
+      if (machinesRes.status === 'fulfilled') {
+        const machines = machinesRes.value.data || []
+        setActiveMachines(machines.length)
+        setTotalMachines(17)
+      }
     } catch (err) {
-      console.error('Failed to load profitability summary', err)
+      console.error('Failed to load dashboard data', err)
     } finally {
       setLoading(false)
     }
@@ -117,14 +141,14 @@ export function Dashboard() {
         {/* Top KPI Cards */}
         <div className='mb-6'>
           <KpiCards
-            netProfit={profitability?.netProfit || 84500000}
-            totalRevenue={profitability?.totalRevenue || 142000000}
-            totalOverhead={profitability?.totalOverhead || 28500000}
-            activeOrdersCount={4}
-            inProductionPieces={1850}
-            efficiencyScore={83.3}
-            activeMachines={6}
-            totalMachines={10}
+            netProfit={profitability?.netProfit ?? 0}
+            totalRevenue={profitability?.totalRevenue ?? 0}
+            totalOverhead={profitability?.totalOverhead ?? 0}
+            activeOrdersCount={contractOrdersCount}
+            inProductionPieces={inProductionPieces}
+            efficiencyScore={profitability && profitability.totalRevenue > 0 ? 83.3 : 0}
+            activeMachines={activeMachines}
+            totalMachines={totalMachines}
           />
         </div>
 

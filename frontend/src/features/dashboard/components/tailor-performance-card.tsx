@@ -82,30 +82,10 @@ export function TailorPerformanceCard() {
           return t
         })
 
-        // If no jobs returned, populate with workshop standard seed tailors
-        if (list.length === 0) {
-          setTailors([
-            { id: 1, name: 'Maryam Rezaei (خیاط ۱)', activeJobs: 3, assignedPieces: 450, completedPieces: 420, rejectedPieces: 3, earnedPayroll: 18900000, defectRate: 0.7, completionRate: 93 },
-            { id: 2, name: 'Somayeh Karimi (خیاط ۲)', activeJobs: 2, assignedPieces: 380, completedPieces: 350, rejectedPieces: 4, earnedPayroll: 15750000, defectRate: 1.1, completionRate: 92 },
-            { id: 3, name: 'Zahra Moradi (خیاط ۳)', activeJobs: 2, assignedPieces: 360, completedPieces: 310, rejectedPieces: 2, earnedPayroll: 13950000, defectRate: 0.6, completionRate: 86 },
-            { id: 4, name: 'Fatemeh Hosseini (خیاط ۴)', activeJobs: 2, assignedPieces: 320, completedPieces: 270, rejectedPieces: 5, earnedPayroll: 12150000, defectRate: 1.8, completionRate: 84 },
-            { id: 5, name: 'Nasrin Ghasemi (خیاط ۵)', activeJobs: 2, assignedPieces: 300, completedPieces: 240, rejectedPieces: 3, earnedPayroll: 10800000, defectRate: 1.2, completionRate: 80 },
-            { id: 6, name: 'Leila Akbari (خیاط ۶)', activeJobs: 1, assignedPieces: 250, completedPieces: 200, rejectedPieces: 1, earnedPayroll: 9000000, defectRate: 0.5, completionRate: 80 },
-          ])
-        } else {
-          setTailors(list)
-        }
+        setTailors(list)
       })
       .catch(() => {
-        // Fallback default mock for workshop
-        setTailors([
-          { id: 1, name: 'Maryam Rezaei (خیاط ۱)', activeJobs: 3, assignedPieces: 450, completedPieces: 420, rejectedPieces: 3, earnedPayroll: 18900000, defectRate: 0.7, completionRate: 93 },
-          { id: 2, name: 'Somayeh Karimi (خیاط ۲)', activeJobs: 2, assignedPieces: 380, completedPieces: 350, rejectedPieces: 4, earnedPayroll: 15750000, defectRate: 1.1, completionRate: 92 },
-          { id: 3, name: 'Zahra Moradi (خیاط ۳)', activeJobs: 2, assignedPieces: 360, completedPieces: 310, rejectedPieces: 2, earnedPayroll: 13950000, defectRate: 0.6, completionRate: 86 },
-          { id: 4, name: 'Fatemeh Hosseini (خیاط ۴)', activeJobs: 2, assignedPieces: 320, completedPieces: 270, rejectedPieces: 5, earnedPayroll: 12150000, defectRate: 1.8, completionRate: 84 },
-          { id: 5, name: 'Nasrin Ghasemi (خیاط ۵)', activeJobs: 2, assignedPieces: 300, completedPieces: 240, rejectedPieces: 3, earnedPayroll: 10800000, defectRate: 1.2, completionRate: 80 },
-          { id: 6, name: 'Leila Akbari (خیاط ۶)', activeJobs: 1, assignedPieces: 250, completedPieces: 200, rejectedPieces: 1, earnedPayroll: 9000000, defectRate: 0.5, completionRate: 80 },
-        ])
+        setTailors([])
       })
   }, [])
 
@@ -152,44 +132,52 @@ export function TailorPerformanceCard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tailors.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className='font-medium text-xs'>
-                    {t.name}
-                  </TableCell>
-                  <TableCell className='text-xs'>
-                    <Badge variant='secondary' className='text-[10px]'>
-                      {t.activeJobs} Batches
-                    </Badge>
-                  </TableCell>
-                  <TableCell className='text-xs font-mono'>
-                    <span className='font-bold text-foreground'>{t.completedPieces}</span> / {t.assignedPieces} pcs
-                  </TableCell>
-                  <TableCell className='w-36'>
-                    <div className='space-y-1'>
-                      <div className='flex justify-between text-[11px] font-mono'>
-                        <span>{t.completionRate}%</span>
-                      </div>
-                      <Progress value={t.completionRate} className='h-1.5' />
-                    </div>
-                  </TableCell>
-                  <TableCell className='text-xs font-mono'>
-                    {t.rejectedPieces > 0 ? (
-                      <span className='text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1'>
-                        <AlertTriangle className='h-3 w-3' /> {t.rejectedPieces} pcs ({t.defectRate}%)
-                      </span>
-                    ) : (
-                      <span className='text-emerald-600 font-medium'>0 defects</span>
-                    )}
-                  </TableCell>
-                  <TableCell className='text-end font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs'>
-                    <div className='flex items-center justify-end gap-1'>
-                      <span>{t.earnedPayroll.toLocaleString()}</span>
-                      <TomanIcon className='size-3 text-muted-foreground' />
-                    </div>
+              {tailors.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className='h-24 text-center text-muted-foreground text-xs'>
+                    هیچ سابقه کارکرد خیاطی ثبت نشده است.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                tailors.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className='font-medium text-xs'>
+                      {t.name}
+                    </TableCell>
+                    <TableCell className='text-xs'>
+                      <Badge variant='secondary' className='text-[10px]'>
+                        {t.activeJobs} Batches
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='text-xs font-mono'>
+                      <span className='font-bold text-foreground'>{t.completedPieces}</span> / {t.assignedPieces} pcs
+                    </TableCell>
+                    <TableCell className='w-36'>
+                      <div className='space-y-1'>
+                        <div className='flex justify-between text-[11px] font-mono'>
+                          <span>{t.completionRate}%</span>
+                        </div>
+                        <Progress value={t.completionRate} className='h-1.5' />
+                      </div>
+                    </TableCell>
+                    <TableCell className='text-xs font-mono'>
+                      {t.rejectedPieces > 0 ? (
+                        <span className='text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1'>
+                          <AlertTriangle className='h-3 w-3' /> {t.rejectedPieces} pcs ({t.defectRate}%)
+                        </span>
+                      ) : (
+                        <span className='text-emerald-600 font-medium'>0 defects</span>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-end font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs'>
+                      <div className='flex items-center justify-end gap-1'>
+                        <span>{t.earnedPayroll.toLocaleString()}</span>
+                        <TomanIcon className='size-3 text-muted-foreground' />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
