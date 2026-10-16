@@ -64,6 +64,10 @@ class AccountOut(BaseModel):
     class Config:
         from_attributes = True
 
+class AccountRevealOut(BaseModel):
+    id: int
+    card_number: str
+
 class AccountIn(BaseModel):
     f_name: Optional[str] = None
     l_name: Optional[str] = None

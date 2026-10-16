@@ -3,7 +3,7 @@ from ninja.errors import HttpError
 from typing import List
 from apps.financial.models import Account, Receipt, Expense
 from apps.financial.schemas import (
-    AccountOut, AccountIn, AccountUpdateIn,
+    AccountOut, AccountIn, AccountUpdateIn, AccountRevealOut,
     ReceiptOut, ReceiptCreateIn, ReceiptUpdateIn,
     ExpenseOut, ExpenseIn, ExpenseUpdateIn
 )
@@ -25,6 +25,15 @@ def require_finance_manager(request):
 def list_accounts(request):
     require_finance_manager(request)
     return Account.objects.select_related('owner', 'user').all().order_by('-is_active', '-id')
+
+@router.get("/accounts/{account_id}/reveal", response=AccountRevealOut, auth=JWTAuth())
+def reveal_account_card(request, account_id: int):
+    require_finance_manager(request)
+    try:
+        account = Account.objects.get(id=account_id)
+    except Account.DoesNotExist:
+        raise HttpError(404, "Account not found")
+    return {"id": account.id, "card_number": account.card_number}
 
 @router.post("/accounts", response=AccountOut, auth=JWTAuth())
 @transaction.atomic

@@ -80,6 +80,16 @@ class PartyApiTests(TestCase):
         body = self.client.get('/api/financial/accounts', **self.auth).json()
         self.assertEqual(next(row for row in body if row['id'] == account.pk)['last4'], '5678')
 
+        # Dedicated reveal action for finance manager
+        reveal_res = self.client.get(f'/api/financial/accounts/{account.pk}/reveal', **self.auth)
+        self.assertEqual(reveal_res.status_code, 200)
+        self.assertEqual(reveal_res.json()['card_number'], '6037997112345678')
+
+        # Unauthorized worker is denied from revealing PAN
+        worker_token = str(RefreshToken.for_user(self.worker).access_token)
+        worker_reveal = self.client.get(f'/api/financial/accounts/{account.pk}/reveal', HTTP_AUTHORIZATION=f'Bearer {worker_token}')
+        self.assertEqual(worker_reveal.status_code, 403)
+
     def test_same_name_users_do_not_leak_receipts(self):
         user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
         user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
