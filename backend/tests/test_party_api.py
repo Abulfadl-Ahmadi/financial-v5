@@ -135,6 +135,15 @@ class PartyApiTests(TestCase):
         account.refresh_from_db()
         self.assertEqual(account.owner, self.recipient)
 
+    def test_cannot_claim_other_party_card_via_user_accounts_api(self):
+        account = Account.objects.create(card_number='6037997112345678', owner=self.recipient, f_name='مریم', l_name='ب')
+        response = self.post_json(f'/api/users/{self.worker.pk}/accounts', {
+            'card_number': account.card_number, 'f_name': 'کارگر', 'l_name': 'تست',
+        }, **self.auth)
+        self.assertEqual(response.status_code, 409)
+        account.refresh_from_db()
+        self.assertEqual(account.owner, self.recipient)
+
     def test_receipt_destination_can_be_party_without_login(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         response = self.post_json('/api/financial/receipts', {
