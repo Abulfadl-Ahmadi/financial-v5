@@ -158,10 +158,14 @@ def list_receipts(request):
 @transaction.atomic
 def create_receipt(request, payload: ReceiptCreateIn):
     require_finance_manager(request)
+    from_acc = None
     try:
         from_acc = Account.objects.get(id=payload.from_account_id)
     except Account.DoesNotExist:
         raise HttpError(404, "From account not found")
+
+    if not from_acc.is_workshop_account:
+        raise HttpError(400, "Source account must be an authorized workshop account")
 
     to_acc = None
     if payload.to_account_id:
@@ -205,6 +209,14 @@ def create_receipt(request, payload: ReceiptCreateIn):
                     display_name=f'{account.f_name} {account.l_name}'.strip() or 'طرف حساب بیرونی',
                 )
             account.save(update_fields=['owner'])
+    existing = Receipt.objects.filter(tracking_code=payload.tracking_code).first()
+    if existing:
+        if (existing.from_account_id == from_acc.id and
+                existing.to_account_id == to_acc.id and
+                existing.amount == payload.amount):
+            return existing
+        raise HttpError(409, f"تراکنش با شماره پیگیری {payload.tracking_code} قبلاً ثبت شده است")
+
     status = payload.status or "VERIFIED"
     receipt = Receipt.objects.create(
         tracking_code=payload.tracking_code,
@@ -361,6 +373,8 @@ def create_expense(request, payload: ExpenseIn):
             account = Account.objects.get(id=payload.account_id)
         except Account.DoesNotExist:
             raise HttpError(404, "Account not found")
+        if not account.is_workshop_account and (not account.owner_id or account.owner.kind != PartyKind.WORKSHOP):
+            raise HttpError(400, "حساب پرداخت‌کننده هزینه باید متعلق به کارگاه باشد")
 
     expense = Expense.objects.create(
         title=payload.title,
@@ -391,9 +405,12 @@ def update_expense(request, expense_id: int, payload: ExpenseUpdateIn):
             expense.account = None
         else:
             try:
-                expense.account = Account.objects.get(id=payload.account_id)
+                account = Account.objects.get(id=payload.account_id)
             except Account.DoesNotExist:
                 raise HttpError(404, "Account not found")
+            if not account.is_workshop_account and (not account.owner_id or account.owner.kind != PartyKind.WORKSHOP):
+                raise HttpError(400, "حساب پرداخت‌کننده هزینه باید متعلق به کارگاه باشد")
+            expense.account = account
 
     if payload.title is not None:
         expense.title = payload.title

@@ -15,7 +15,8 @@ class FinancialTestCase(TestCase):
         self.acc2 = Account.objects.create(
             f_name="رضا",
             l_name="مرادی",
-            card_number="6104331122334455"
+            card_number="6104331122334455",
+            is_workshop_account=True
         )
         manager = get_user_model().objects.create_user(username='financial-manager', password='test-password', role=UserRole.ACCOUNTANT)
         token = str(RefreshToken.for_user(manager).access_token)
@@ -91,3 +92,46 @@ class FinancialTestCase(TestCase):
         res2 = self.client.get("/api/financial/profitability-summary", **self.auth)
         self.assertEqual(res2.status_code, 200)
         self.assertEqual(res2.json()["totalRevenue"], 15000000.0)
+
+    def test_receipt_source_account_must_be_workshop_account(self):
+        """Test Issue #13: Source account must have is_workshop_account=True."""
+        non_workshop_acc = Account.objects.create(
+            f_name="اصغر",
+            l_name="کارگر",
+            card_number="5892101234567890",
+            is_workshop_account=False
+        )
+        payload = {
+            "tracking_code": "TRX-INVALID-SRC-01",
+            "date_jalali": "1405/05/10",
+            "from_account_id": non_workshop_acc.id,
+            "to_account_id": self.acc1.id,
+            "amount": "1000000",
+            "receipt_type": "OTHER"
+        }
+        res = self.client.post("/api/financial/receipts", data=payload, content_type="application/json", **self.auth)
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("workshop account", res.json().get("detail", ""))
+
+    def test_idempotent_receipt_creation_prevents_duplicate_transactions(self):
+        """Test Issue #12: Re-submitting same receipt with identical details returns existing receipt without duplication."""
+        payload = {
+            "tracking_code": "TRX-IDEMPOTENT-01",
+            "date_jalali": "1405/05/10",
+            "from_account_id": self.acc2.id,
+            "to_account_id": self.acc1.id,
+            "amount": "3000000",
+            "receipt_type": "OTHER"
+        }
+        # First submission
+        res1 = self.client.post("/api/financial/receipts", data=payload, content_type="application/json", **self.auth)
+        self.assertEqual(res1.status_code, 200)
+        receipt_id1 = res1.json()["id"]
+
+        # Second submission (e.g. user retrying after image upload failure)
+        res2 = self.client.post("/api/financial/receipts", data=payload, content_type="application/json", **self.auth)
+        self.assertEqual(res2.status_code, 200)
+        receipt_id2 = res2.json()["id"]
+
+        self.assertEqual(receipt_id1, receipt_id2)
+        self.assertEqual(Receipt.objects.filter(tracking_code="TRX-IDEMPOTENT-01").count(), 1)
