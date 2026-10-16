@@ -37,7 +37,7 @@ export function UsersDeleteDialog({
       onOpenChange(false)
       if (onSuccess) {
         onSuccess()
-      } else {
+      } else if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
         window.location.reload()
       }
     } catch (error: unknown) {

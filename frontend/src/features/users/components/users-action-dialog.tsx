@@ -222,9 +222,11 @@ export function UsersActionDialog({
     >
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader className='text-start'>
-          <DialogTitle>{isEdit ? 'Edit User / Tailor Profile' : 'Add New User / Tailor'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit User' : 'Add New User'}</DialogTitle>
           <DialogDescription>
-            {isEdit ? 'Update worker information and multiple bank cards.' : 'Register new tailor, contractor, or staff member.'}
+            {isEdit
+              ? "Update the user here. Click save when you're done."
+              : "Create new user here. Click save when you're done."}
           </DialogDescription>
         </DialogHeader>
         <div className='h-110 w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3'>

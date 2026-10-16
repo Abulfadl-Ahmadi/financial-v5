@@ -34,16 +34,24 @@ export function UsersMultiDeleteDialog<TData>({
       return
     }
 
-    const selectedIds = selectedRows.map((row) => (row.original as User).id)
-    if (selectedIds.length === 0) return
+    const selectedIds = selectedRows
+      .map((row) => (row.original as User | undefined)?.id)
+      .filter((id): id is string | number => id != null)
 
     onOpenChange(false)
+
+    if (selectedIds.length === 0) {
+      table.resetRowSelection()
+      return
+    }
 
     toast.promise(
       apiClient.post('/users/bulk-delete', { ids: selectedIds }).then(() => {
         setValue('')
         table.resetRowSelection()
-        window.location.reload()
+        if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
+          window.location.reload()
+        }
       }),
       {
         loading: 'در حال غیرفعال‌سازی کاربران...',

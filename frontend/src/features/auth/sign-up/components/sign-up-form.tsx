@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { IconFacebook, IconGithub } from '@/assets/brand-icons'
-import { cn } from '@/lib/utils'
+import { sleep, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -50,9 +50,17 @@ export function SignUpForm({
     },
   })
 
-  function onSubmit() {
-    setIsLoading(false)
-    toast.info('ثبت‌نام عمومی در سیستم کارگاه غیرفعال است. حساب‌ها تنها توسط مدیر کل تعریف می‌شوند.')
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    setIsLoading(true)
+
+    toast.promise(sleep(100), {
+      loading: 'Creating account...',
+      success: () => {
+        setIsLoading(false)
+        return `Account created for ${data.email}.`
+      },
+      error: 'Error',
+    })
   }
 
   return (

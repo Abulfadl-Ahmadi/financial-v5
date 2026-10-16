@@ -11,6 +11,11 @@ import {
   Command,
   GalleryVerticalEnd,
   AudioWaveform,
+  UserCog,
+  Wrench,
+  Palette,
+  Bell,
+  Monitor,
 } from '@/components/ui/icons'
 import { type SidebarData } from '../types'
 
@@ -106,6 +111,37 @@ export const sidebarData: SidebarData = {
           title: 'Garments & Styles',
           url: '/cloths',
           icon: Dress,
+        },
+      ],
+    },
+    {
+      title: 'Pages',
+      items: [
+        {
+          title: 'Settings',
+          icon: UserCog,
+          items: [
+            {
+              title: 'Profile',
+              url: '/settings',
+            },
+            {
+              title: 'Account',
+              url: '/settings/account',
+            },
+            {
+              title: 'Appearance',
+              url: '/settings/appearance',
+            },
+            {
+              title: 'Notifications',
+              url: '/settings/notifications',
+            },
+            {
+              title: 'Display',
+              url: '/settings/display',
+            },
+          ],
         },
       ],
     },

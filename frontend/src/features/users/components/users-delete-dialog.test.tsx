@@ -6,6 +6,14 @@ import { showSubmittedData } from '@/lib/show-submitted-data'
 import { type User } from '../data/schema'
 import { UsersDeleteDialog } from './users-delete-dialog'
 
+const deleteMock = vi.fn().mockResolvedValue({ data: { success: true } })
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    delete: (...args: unknown[]) => deleteMock(...args),
+  },
+}))
+
 vi.mock('@/lib/show-submitted-data', () => ({ showSubmittedData: vi.fn() }))
 
 const MOCK_USER: User = {
@@ -136,14 +144,8 @@ describe('UsersDeleteDialog', () => {
 
     await userEvent.click(deleteButton)
 
-    expect(onOpenChange).toHaveBeenCalledOnce()
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-
-    expect(showSubmittedData).toHaveBeenCalledOnce()
-    expect(showSubmittedData).toHaveBeenCalledWith(
-      MOCK_USER,
-      'The following user has been deleted:'
-    )
+    await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(deleteMock).toHaveBeenCalledWith(`/users/${MOCK_USER.id}`)
   })
 
   it('deletes successfully when press Enter key on the username input', async () => {
@@ -166,13 +168,7 @@ describe('UsersDeleteDialog', () => {
 
     await userEvent.keyboard('{Enter}')
 
-    expect(onOpenChange).toHaveBeenCalledOnce()
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-
-    expect(showSubmittedData).toHaveBeenCalledOnce()
-    expect(showSubmittedData).toHaveBeenCalledWith(
-      MOCK_USER,
-      'The following user has been deleted:'
-    )
+    await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(deleteMock).toHaveBeenCalledWith(`/users/${MOCK_USER.id}`)
   })
 })

@@ -5,6 +5,14 @@ import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { UsersMultiDeleteDialog } from './users-multi-delete-dialog'
 
+const postMock = vi.fn().mockResolvedValue({ data: { success: true } })
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    post: (...args: unknown[]) => postMock(...args),
+  },
+}))
+
 vi.mock('@/lib/utils', async (orig) => ({
   ...(await orig()),
   sleep: vi.fn(() => Promise.resolve()),

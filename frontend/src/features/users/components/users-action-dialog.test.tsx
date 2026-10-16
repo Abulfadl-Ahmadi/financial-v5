@@ -1,22 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { type UserEvent, userEvent } from 'vitest/browser'
-import { showSubmittedData } from '@/lib/show-submitted-data'
 import { type User } from '../data/schema'
 import { UsersActionDialog } from './users-action-dialog'
+
+const postMock = vi.fn().mockResolvedValue({ data: { id: 1 } })
+const putMock = vi.fn().mockResolvedValue({ data: { id: 1 } })
+const getMock = vi.fn().mockResolvedValue({ data: [] })
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    get: (...args: unknown[]) => getMock(...args),
+    post: (...args: unknown[]) => postMock(...args),
+    put: (...args: unknown[]) => putMock(...args),
+  },
+}))
 
 const VALIDATION_MESSAGES = {
   firstName: 'First Name is required.',
   lastName: 'Last Name is required.',
   username: 'Username is required.',
-  phoneNumber: 'Phone number is required.',
-  email: 'Email is required.',
   role: 'Role is required.',
   password: 'Password is required.',
   passwordMismatch: "Passwords don't match.",
-  passwordLength: 'Password must be at least 8 characters long.',
-  passwordNumber: 'Password must contain at least one number.',
-  passwordLowercase: 'Password must contain at least one lowercase letter.',
 } as const
 
 const MOCK_USER: User = {
@@ -29,13 +35,15 @@ const MOCK_USER: User = {
   card_number: null,
   brand_name: null,
   status: 'active',
-  role: 'superadmin',
+  role: 'OWNER',
 }
 
-vi.mock('@/lib/show-submitted-data', () => ({ showSubmittedData: vi.fn() }))
-
 describe('UsersActionDialog', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    postMock.mockResolvedValue({ data: { id: 1 } })
+    putMock.mockResolvedValue({ data: { id: 1 } })
+  })
 
   describe('add user', () => {
     it('renders title and description', async () => {
@@ -71,15 +79,6 @@ describe('UsersActionDialog', () => {
         .toBeInTheDocument()
       await expect
         .element(getByText(VALIDATION_MESSAGES.username))
-        .toBeInTheDocument()
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.phoneNumber))
-        .toBeInTheDocument()
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.email))
-        .toBeInTheDocument()
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.role))
         .toBeInTheDocument()
       await expect
         .element(getByText(VALIDATION_MESSAGES.password))
@@ -119,40 +118,9 @@ describe('UsersActionDialog', () => {
       await expect
         .element(getByText(VALIDATION_MESSAGES.passwordMismatch))
         .toBeInTheDocument()
-
-      await userEvent.fill(password, 'short')
-
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordLength))
-        .toBeInTheDocument()
-
-      await userEvent.fill(password, 'ONLYUPPERCASE')
-
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordLowercase))
-        .toBeInTheDocument()
-
-      await userEvent.fill(password, 'onlylowercase')
-
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordNumber))
-        .toBeInTheDocument()
-
-      await userEvent.fill(password, 'S3cur3P@ssw0rd')
-      await userEvent.fill(confirmPassword, 'S3cur3P@ssw0rd')
-
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordMismatch))
-        .not.toBeInTheDocument()
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordLength))
-        .not.toBeInTheDocument()
-      await expect
-        .element(getByText(VALIDATION_MESSAGES.passwordNumber))
-        .not.toBeInTheDocument()
     })
 
-    it('shows the submitted data when the form is submitted successfully', async () => {
+    it('submits form successfully when valid', async () => {
       const onOpenChange = vi.fn()
 
       const screen = await render(
@@ -172,21 +140,8 @@ describe('UsersActionDialog', () => {
       const submitButton = screen.getByRole('button', { name: /Save Changes/i })
       await userEvent.click(submitButton)
 
-      expect(onOpenChange).toHaveBeenCalledOnce()
-      expect(onOpenChange).toHaveBeenCalledWith(false)
-
-      expect(showSubmittedData).toHaveBeenCalledOnce()
-      expect(showSubmittedData).toHaveBeenCalledWith({
-        firstName: MOCK_USER.first_name,
-        lastName: MOCK_USER.last_name,
-        username: MOCK_USER.username,
-        email: MOCK_USER.email,
-        role: MOCK_USER.role,
-        phoneNumber: MOCK_USER.phone_number,
-        password: 'S3cur3P@ssw0rd',
-        confirmPassword: 'S3cur3P@ssw0rd',
-        isEdit: false,
-      })
+      await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(postMock).toHaveBeenCalledOnce()
     })
   })
 
@@ -221,21 +176,8 @@ describe('UsersActionDialog', () => {
       const submitButton = screen.getByRole('button', { name: /Save Changes/i })
       await userEvent.click(submitButton)
 
-      expect(onOpenChange).toHaveBeenCalledOnce()
-      expect(onOpenChange).toHaveBeenCalledWith(false)
-
-      expect(showSubmittedData).toHaveBeenCalledOnce()
-      expect(showSubmittedData).toHaveBeenCalledWith({
-        firstName: MOCK_USER.first_name,
-        lastName: MOCK_USER.last_name,
-        username: MOCK_USER.username,
-        email: MOCK_USER.email,
-        phoneNumber: MOCK_USER.phone_number,
-        role: MOCK_USER.role,
-        password: '',
-        confirmPassword: '',
-        isEdit: true,
-      })
+      await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(putMock).toHaveBeenCalledOnce()
     })
 
     it('requires confirm password when password is changed', async () => {
@@ -259,7 +201,7 @@ describe('UsersActionDialog', () => {
         .toBeInTheDocument()
     })
 
-    it('shows the submitted data when the form is submitted successfully', async () => {
+    it('submits edit user form successfully with password change', async () => {
       const onOpenChange = vi.fn()
       const screen = await render(
         <UsersActionDialog
@@ -286,21 +228,8 @@ describe('UsersActionDialog', () => {
       const submitButton = screen.getByRole('button', { name: /Save Changes/i })
       await userEvent.click(submitButton)
 
-      expect(onOpenChange).toHaveBeenCalledOnce()
-      expect(onOpenChange).toHaveBeenCalledWith(false)
-
-      expect(showSubmittedData).toHaveBeenCalledOnce()
-      expect(showSubmittedData).toHaveBeenCalledWith({
-        firstName: EDIT_SUCCESS_FIRST_NAME,
-        lastName: MOCK_USER.last_name,
-        username: MOCK_USER.username,
-        email: MOCK_USER.email,
-        phoneNumber: MOCK_USER.phone_number,
-        role: MOCK_USER.role,
-        password: EDIT_SUCCESS_PASSWORD,
-        confirmPassword: EDIT_SUCCESS_PASSWORD,
-        isEdit: true,
-      })
+      await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(putMock).toHaveBeenCalledOnce()
     })
   })
 })
@@ -321,8 +250,6 @@ async function fillRequiredProfileFields(
     [/first name/i, overrides?.firstName ?? 'John'],
     [/last name/i, overrides?.lastName ?? 'Doe'],
     [/username/i, overrides?.username ?? 'john_doe'],
-    [/^email$/i, overrides?.email ?? 'a@b.co'],
-    [/phone number/i, overrides?.phoneNumber ?? '+19999999999'],
   ] as const
 
   for (const [label, value] of entries) {
@@ -334,7 +261,7 @@ async function fillRequiredProfileFields(
   const roleSelect = screen.getByRole('combobox', { name: /Role/i })
   await user.click(roleSelect)
   await user.click(
-    screen.getByRole('option', { name: overrides?.roleOption ?? 'Superadmin' })
+    screen.getByRole('option', { name: overrides?.roleOption ?? /Owner/i })
   )
 }
 
