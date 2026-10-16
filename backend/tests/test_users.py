@@ -51,3 +51,26 @@ class UsersModelAndApiTestCase(TestCase):
             content_type="application/json"
         )
         self.assertEqual(response.status_code, 401)
+
+    def test_jwt_auth_get_current_user(self):
+        """Test login token successfully authenticates GET /users/me."""
+        login_res = self.client.post(
+            "/api/users/login",
+            data={"username": "owner_user", "password": "password123"},
+            content_type="application/json"
+        )
+        token = login_res.json()["access"]
+
+        # Valid Bearer token succeeds
+        me_res = self.client.get("/api/users/me", HTTP_AUTHORIZATION=f"Bearer {token}")
+        self.assertEqual(me_res.status_code, 200)
+        self.assertEqual(me_res.json()["username"], "owner_user")
+
+        # Anonymous request is rejected with 401
+        anon_res = self.client.get("/api/users/me")
+        self.assertEqual(anon_res.status_code, 401)
+
+        # Invalid token is rejected with 401
+        invalid_res = self.client.get("/api/users/me", HTTP_AUTHORIZATION="Bearer invalid-token")
+        self.assertEqual(invalid_res.status_code, 401)
+
