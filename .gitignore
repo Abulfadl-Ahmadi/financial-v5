@@ -25,3 +25,10 @@ frontend/.tanstack/
 
 .agents/
 .claude/
+
+# Media and file uploads (Private user files)
+backend/media/
+
+# Sensitive bank statements and exports
+bank_report/*.xlsx
+bank_report/__pycache__/
