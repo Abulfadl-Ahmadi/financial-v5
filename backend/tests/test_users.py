@@ -153,4 +153,39 @@ class UsersModelAndApiTestCase(TestCase):
         with self.assertRaises(ProtectedError):
             self.owner.delete()
 
+    def test_bulk_toggle_and_delete_users(self):
+        """Test Issue #10: Real backend mutations for user bulk toggle-active and bulk soft delete."""
+        u1 = User.objects.create_user(username="bulk_u1", role=UserRole.WORKER)
+        u2 = User.objects.create_user(username="bulk_u2", role=UserRole.WORKER)
+        owner_token = str(RefreshToken.for_user(self.owner).access_token)
+        owner_auth = {"HTTP_AUTHORIZATION": f"Bearer {owner_token}"}
+
+        # 1. Bulk toggle active (deactivate)
+        toggle_res = self.client.post(
+            "/api/users/bulk-toggle-active",
+            data={"ids": [u1.id, u2.id]},
+            content_type="application/json",
+            **owner_auth
+        )
+        self.assertEqual(toggle_res.status_code, 200)
+        u1.refresh_from_db()
+        u2.refresh_from_db()
+        self.assertFalse(u1.is_active)
+        self.assertFalse(u2.is_active)
+
+        # 2. Bulk delete (soft-delete)
+        u1.is_active = True
+        u1.save()
+        del_res = self.client.post(
+            "/api/users/bulk-delete",
+            data={"ids": [u1.id, u2.id]},
+            content_type="application/json",
+            **owner_auth
+        )
+        self.assertEqual(del_res.status_code, 200)
+        u1.refresh_from_db()
+        u2.refresh_from_db()
+        self.assertFalse(u1.is_active)
+        self.assertFalse(u2.is_active)
+
 

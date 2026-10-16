@@ -1,4 +1,4 @@
-from ninja import Router
+from ninja import Router, Schema
 from ninja_jwt.authentication import JWTAuth
 from ninja.errors import HttpError
 from typing import List
@@ -72,6 +72,24 @@ def get_current_user(request):
 def list_users(request):
     require_finance_manager(request)
     return User.objects.prefetch_related("bank_accounts").all().order_by("-id")
+
+class BulkUsersActionIn(Schema):
+    ids: List[int]
+
+@router.post("/bulk-delete", auth=JWTAuth())
+def bulk_delete_users(request, payload: BulkUsersActionIn):
+    require_owner(request)
+    count = User.objects.filter(id__in=payload.ids).update(is_active=False)
+    return {"success": True, "count": count}
+
+@router.post("/bulk-toggle-active", auth=JWTAuth())
+def bulk_toggle_active_users(request, payload: BulkUsersActionIn):
+    require_owner(request)
+    users = list(User.objects.filter(id__in=payload.ids))
+    for u in users:
+        u.is_active = not u.is_active
+        u.save(update_fields=['is_active'])
+    return {"success": True, "count": len(users)}
 
 @router.get("/{user_id}", response=UserOut, auth=JWTAuth())
 def get_user(request, user_id: int):

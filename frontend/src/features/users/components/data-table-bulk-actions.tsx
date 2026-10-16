@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { type Table } from '@tanstack/react-table'
-import { Trash2, UserX, UserCheck, Mail } from 'lucide-react'
+import { Trash2, UserX, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { sleep } from '@/lib/utils'
+import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -25,28 +25,20 @@ export function DataTableBulkActions<TData>({
 
   const handleBulkStatusChange = (status: 'active' | 'inactive') => {
     const selectedUsers = selectedRows.map((row) => row.original as User)
-    toast.promise(sleep(2000), {
-      loading: `${status === 'active' ? 'Activating' : 'Deactivating'} users...`,
-      success: () => {
-        table.resetRowSelection()
-        return `${status === 'active' ? 'Activated' : 'Deactivated'} ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`
-      },
-      error: `Error ${status === 'active' ? 'activating' : 'deactivating'} users`,
-    })
-    table.resetRowSelection()
-  }
+    const ids = selectedUsers.map((u) => u.id)
+    if (ids.length === 0) return
 
-  const handleBulkInvite = () => {
-    const selectedUsers = selectedRows.map((row) => row.original as User)
-    toast.promise(sleep(2000), {
-      loading: 'Inviting users...',
-      success: () => {
+    toast.promise(
+      apiClient.post('/users/bulk-toggle-active', { ids }).then(() => {
         table.resetRowSelection()
-        return `Invited ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`
-      },
-      error: 'Error inviting users',
-    })
-    table.resetRowSelection()
+        window.location.reload()
+      }),
+      {
+        loading: `${status === 'active' ? 'در حال فعال‌سازی' : 'در حال غیرفعال‌سازی'} کاربران...`,
+        success: `وضعیت ${selectedUsers.length} کاربر با موفقیت تغییر یافت.`,
+        error: 'خطا در تغییر وضعیت گروهی کاربران',
+      }
+    )
   }
 
   return (
@@ -57,17 +49,17 @@ export function DataTableBulkActions<TData>({
             <Button
               variant='outline'
               size='icon'
-              onClick={handleBulkInvite}
+              onClick={() => handleBulkStatusChange('active')}
               className='size-8'
-              aria-label='Invite selected users'
-              title='Invite selected users'
+              aria-label='Activate selected users'
+              title='Activate selected users'
             >
-              <Mail />
-              <span className='sr-only'>Invite selected users</span>
+              <UserCheck />
+              <span className='sr-only'>Activate selected users</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Invite selected users</p>
+            <p>Activate selected users</p>
           </TooltipContent>
         </Tooltip>
 

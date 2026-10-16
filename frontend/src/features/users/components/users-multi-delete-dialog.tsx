@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { sleep } from '@/lib/utils'
+import { apiClient } from '@/lib/api-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { type User } from '../data/schema'
 
 type UserMultiDeleteDialogProps<TData> = {
   open: boolean
@@ -29,23 +30,27 @@ export function UsersMultiDeleteDialog<TData>({
 
   const handleDelete = () => {
     if (value.trim() !== CONFIRM_WORD) {
-      toast.error(`Please type "${CONFIRM_WORD}" to confirm.`)
+      toast.error(`لطفاً برای تایید عبارت "${CONFIRM_WORD}" را وارد کنید.`)
       return
     }
 
+    const selectedIds = selectedRows.map((row) => (row.original as User).id)
+    if (selectedIds.length === 0) return
+
     onOpenChange(false)
 
-    toast.promise(sleep(2000), {
-      loading: 'Deleting users...',
-      success: () => {
+    toast.promise(
+      apiClient.post('/users/bulk-delete', { ids: selectedIds }).then(() => {
         setValue('')
         table.resetRowSelection()
-        return `Deleted ${selectedRows.length} ${
-          selectedRows.length > 1 ? 'users' : 'user'
-        }`
-      },
-      error: 'Error',
-    })
+        window.location.reload()
+      }),
+      {
+        loading: 'در حال غیرفعال‌سازی کاربران...',
+        success: `تعداد ${selectedIds.length} کاربر با موفقیت غیرفعال شد.`,
+        error: 'خطا در حذف کاربران',
+      }
+    )
   }
 
   return (
