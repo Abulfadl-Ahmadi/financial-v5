@@ -107,6 +107,7 @@ export function ReceiptsActionDialog({
   const [savedReceiptForUpload, setSavedReceiptForUpload] = useState<number | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [removeImage, setRemoveImage] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -133,6 +134,7 @@ export function ReceiptsActionDialog({
         setImagePreview(null)
       }
       setImageFile(null)
+      setRemoveImage(false)
     }
   }, [open, currentRow])
 
@@ -203,12 +205,14 @@ export function ReceiptsActionDialog({
       }
       setImageFile(file)
       setImagePreview(URL.createObjectURL(file))
+      setRemoveImage(false)
     }
   }
 
   const handleRemoveImage = () => {
     setImageFile(null)
     setImagePreview(null)
+    setRemoveImage(true)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -255,6 +259,9 @@ export function ReceiptsActionDialog({
         payload.to_account_id = values.to_account_id
       }
 
+      if (isEdit && removeImage && !imageFile) {
+        payload.remove_image = true
+      }
       let savedReceiptId: number
       if (persistedId) {
         savedReceiptId = persistedId

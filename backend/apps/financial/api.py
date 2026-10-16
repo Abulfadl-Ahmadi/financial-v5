@@ -296,8 +296,26 @@ def update_receipt(request, receipt_id: int, payload: ReceiptUpdateIn):
         receipt.status = payload.status
     if payload.notes is not None:
         receipt.notes = payload.notes
+    if payload.remove_image:
+        if receipt.image:
+            receipt.image.delete(save=False)
+            receipt.image = None
 
     receipt.save()
+    return receipt
+
+@router.delete("/receipts/{receipt_id}/image", response=ReceiptOut, auth=JWTAuth())
+def delete_receipt_image(request, receipt_id: int):
+    require_finance_manager(request)
+    try:
+        receipt = Receipt.objects.get(id=receipt_id)
+    except Receipt.DoesNotExist:
+        raise HttpError(404, "Receipt not found")
+
+    if receipt.image:
+        receipt.image.delete(save=False)
+        receipt.image = None
+        receipt.save(update_fields=['image'])
     return receipt
 
 @router.post("/receipts/{receipt_id}/image", response=ReceiptOut, auth=JWTAuth())

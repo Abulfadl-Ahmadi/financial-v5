@@ -148,6 +148,33 @@ class PartyApiTests(TestCase):
         # Historical receipts on card2 are preserved
         self.assertEqual(Receipt.objects.filter(tracking_code='T-ARCH-1', to_account=card2).count(), 1)
 
+    def test_remove_receipt_image_via_put_and_delete_endpoints(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
+        receipt = Receipt.objects.create(tracking_code='T-IMG-1', date_jalali='1405/01/01', from_account=source, to_account=dest, amount=100)
+        receipt.image.save('receipt.png', SimpleUploadedFile('receipt.png', b'fake image data', content_type='image/png'))
+        receipt.save()
+        self.assertTrue(bool(receipt.image))
+
+        # Remove image via PUT endpoint with remove_image=True
+        res = self.client.put(f'/api/financial/receipts/{receipt.pk}', data=json.dumps({
+            'remove_image': True,
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(res.status_code, 200)
+        receipt.refresh_from_db()
+        self.assertFalse(bool(receipt.image))
+
+        # Re-attach and remove via DELETE endpoint
+        receipt.image.save('receipt2.png', SimpleUploadedFile('receipt2.png', b'fake image data 2', content_type='image/png'))
+        receipt.save()
+        self.assertTrue(bool(receipt.image))
+
+        del_res = self.client.delete(f'/api/financial/receipts/{receipt.pk}/image', **self.auth)
+        self.assertEqual(del_res.status_code, 200)
+        receipt.refresh_from_db()
+        self.assertFalse(bool(receipt.image))
+
     def test_same_name_users_do_not_leak_receipts(self):
         user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
         user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)

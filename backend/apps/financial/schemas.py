@@ -137,6 +137,7 @@ class ReceiptCreateIn(BaseModel):
         return valid_receipt_status(value) if value is not None else value
 
 class ReceiptUpdateIn(BaseModel):
+    remove_image: Optional[bool] = None
     new_to_card_number: Optional[str] = None
     new_to_f_name: Optional[str] = None
     new_to_l_name: Optional[str] = None
