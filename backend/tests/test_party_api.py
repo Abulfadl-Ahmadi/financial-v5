@@ -4,6 +4,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from apps.users.models import Party, PartyKind, UserRole
 from apps.financial.models import Account, Receipt
+from apps.financial.ownership import register_card, get_user_party
 from ninja_jwt.tokens import RefreshToken
 
 User = get_user_model()
@@ -78,6 +79,21 @@ class PartyApiTests(TestCase):
                 self.assertNotIn(source.card_number, result.content.decode())
         body = self.client.get('/api/financial/accounts', **self.auth).json()
         self.assertEqual(next(row for row in body if row['id'] == account.pk)['last4'], '5678')
+
+    def test_same_name_users_do_not_leak_receipts(self):
+        user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
+        user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
+        card1 = register_card(party=get_user_party(user1), number='6037997112345671', first_name='رضا', last_name='محمدی')
+        card2 = register_card(party=get_user_party(user2), number='6037997112345672', first_name='رضا', last_name='محمدی')
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        Receipt.objects.create(tracking_code='T-NAME-1', date_jalali='1405/01/01', from_account=source, to_account=card1, amount=100)
+
+        res1 = self.client.get(f'/api/users/{user1.pk}/receipts', **self.auth)
+        res2 = self.client.get(f'/api/users/{user2.pk}/receipts', **self.auth)
+        self.assertEqual(res1.status_code, 200)
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(len(res1.json()), 1)
+        self.assertEqual(len(res2.json()), 0)
 
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
