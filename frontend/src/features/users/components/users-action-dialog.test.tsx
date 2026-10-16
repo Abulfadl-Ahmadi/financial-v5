@@ -21,15 +21,15 @@ const VALIDATION_MESSAGES = {
 
 const MOCK_USER: User = {
   id: 'alex_uuid',
-  firstName: 'Alex',
-  lastName: 'Smith',
+  first_name: 'Alex',
+  last_name: 'Smith',
   username: 'alex_smith',
   email: 'alex@smith.com',
-  phoneNumber: '+19999999999',
+  phone_number: '+19999999999',
+  card_number: null,
+  brand_name: null,
   status: 'active',
   role: 'superadmin',
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-02-02'),
 }
 
 vi.mock('@/lib/show-submitted-data', () => ({ showSubmittedData: vi.fn() }))
@@ -159,7 +159,13 @@ describe('UsersActionDialog', () => {
         <UsersActionDialog open onOpenChange={onOpenChange} />
       )
 
-      await fillRequiredProfileFields(userEvent, screen, MOCK_USER)
+      await fillRequiredProfileFields(userEvent, screen, {
+        firstName: MOCK_USER.first_name,
+        lastName: MOCK_USER.last_name,
+        username: MOCK_USER.username,
+        email: MOCK_USER.email || undefined,
+        phoneNumber: MOCK_USER.phone_number || undefined,
+      })
 
       await fillPasswords(userEvent, screen, 'S3cur3P@ssw0rd', 'S3cur3P@ssw0rd')
 
@@ -171,12 +177,12 @@ describe('UsersActionDialog', () => {
 
       expect(showSubmittedData).toHaveBeenCalledOnce()
       expect(showSubmittedData).toHaveBeenCalledWith({
-        firstName: MOCK_USER.firstName,
-        lastName: MOCK_USER.lastName,
+        firstName: MOCK_USER.first_name,
+        lastName: MOCK_USER.last_name,
         username: MOCK_USER.username,
         email: MOCK_USER.email,
         role: MOCK_USER.role,
-        phoneNumber: MOCK_USER.phoneNumber,
+        phoneNumber: MOCK_USER.phone_number,
         password: 'S3cur3P@ssw0rd',
         confirmPassword: 'S3cur3P@ssw0rd',
         isEdit: false,
@@ -220,11 +226,11 @@ describe('UsersActionDialog', () => {
 
       expect(showSubmittedData).toHaveBeenCalledOnce()
       expect(showSubmittedData).toHaveBeenCalledWith({
-        firstName: MOCK_USER.firstName,
-        lastName: MOCK_USER.lastName,
+        firstName: MOCK_USER.first_name,
+        lastName: MOCK_USER.last_name,
         username: MOCK_USER.username,
         email: MOCK_USER.email,
-        phoneNumber: MOCK_USER.phoneNumber,
+        phoneNumber: MOCK_USER.phone_number,
         role: MOCK_USER.role,
         password: '',
         confirmPassword: '',
@@ -286,10 +292,10 @@ describe('UsersActionDialog', () => {
       expect(showSubmittedData).toHaveBeenCalledOnce()
       expect(showSubmittedData).toHaveBeenCalledWith({
         firstName: EDIT_SUCCESS_FIRST_NAME,
-        lastName: MOCK_USER.lastName,
+        lastName: MOCK_USER.last_name,
         username: MOCK_USER.username,
         email: MOCK_USER.email,
-        phoneNumber: MOCK_USER.phoneNumber,
+        phoneNumber: MOCK_USER.phone_number,
         role: MOCK_USER.role,
         password: EDIT_SUCCESS_PASSWORD,
         confirmPassword: EDIT_SUCCESS_PASSWORD,
