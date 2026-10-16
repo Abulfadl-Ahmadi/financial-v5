@@ -16,89 +16,94 @@ import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'satnaing',
-    email: 'satnaingdev@gmail.com',
+    name: 'Workshop Owner',
+    email: 'admin@garment-workshop.com',
     avatar: '/avatars/shadcn.jpg',
   },
   teams: [
     {
-      name: 'Abulfadl Admin',
+      name: 'Garment ERP Workshop',
       logo: Command,
-      plan: 'Buisness Managment',
+      plan: 'Workshop Management',
     },
     {
-      name: 'Acme Inc',
+      name: 'Cutting & Sewing Unit',
       logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
+      plan: 'Production Floor',
     },
     {
-      name: 'Acme Corp.',
+      name: 'Financial & Accounts',
       logo: AudioWaveform,
-      plan: 'Startup',
+      plan: 'Cashflow & Profit',
     },
   ],
   navGroups: [
     {
-      title: 'General',
+      title: 'Workshop Management',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Executive Dashboard',
           url: '/',
           icon: LayoutDashboard,
         },
         {
-          title: 'Tasks',
-          url: '/tasks',
-          icon: ListTodo,
+          title: 'Workforce & Tailors',
+          url: '/users',
+          icon: Users,
         },
         {
-          title: 'Chats',
+          title: 'Team Communications',
           url: '/chats',
           badge: '3',
           icon: MessagesSquare,
         },
-        {
-          title: 'Employments',
-          url: '/users',
-          icon: Users,
-        },
       ],
     },
     {
-      title: 'Cutting',
+      title: 'Production & Sewing',
       items: [
         {
-          title: 'Cuts',
-          icon: Scissors,
+          title: 'Cutting Orders',
           url: '/cuts',
+          icon: Scissors,
+        },
+        {
+          title: 'Sewing Operations & Tasks',
+          url: '/tasks',
+          icon: ListTodo,
         },
       ],
     },
     {
-      title: 'Financial',
+      title: 'Financial & Accounting',
       items: [
         {
-          title: 'Accounts',
+          title: 'Bank Accounts',
           url: '/accounts',
           icon: CreditCard,
         },
         {
-          title: 'Receipts',
+          title: 'Receipts & Cashflow',
           url: '/receipts',
+          icon: Receipt,
+        },
+        {
+          title: 'Workshop Expenses',
+          url: '/expenses',
           icon: Receipt,
         },
       ],
     },
     {
-      title: 'Inventory',
+      title: 'Warehouse & Inventory',
       items: [
         {
-          title: 'Cloth rolls',
+          title: 'Fabric Rolls (طاقه‌ها)',
+          url: '/cloth-rolls',
           icon: Scroll,
-          url: 'cloth-rolls',
         },
         {
-          title: 'cloths',
+          title: 'Garments & Styles',
           url: '/cloths',
           icon: Dress,
         },
