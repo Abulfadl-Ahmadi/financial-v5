@@ -36,11 +36,11 @@ export function SelectDropdown({
   return (
     <Select {...defaultState}>
       <FormControl>
-        <SelectTrigger disabled={disabled} className={cn(className)}>
+        <SelectTrigger disabled={disabled} className={cn('w-full min-w-0', className)}>
           <SelectValue placeholder={placeholder ?? 'Select'} />
         </SelectTrigger>
       </FormControl>
-      <SelectContent>
+      <SelectContent className='max-w-[calc(100vw-2rem)] sm:max-w-md md:max-w-lg'>
         {isPending ? (
           <SelectItem disabled value='loading' className='h-14'>
             <div className='flex items-center justify-center gap-2'>
@@ -51,8 +51,8 @@ export function SelectDropdown({
           </SelectItem>
         ) : (
           items?.map(({ label, value }) => (
-            <SelectItem key={value} value={value}>
-              {label}
+            <SelectItem key={value} value={value} title={label}>
+              <span className='truncate block min-w-0 max-w-full'>{label}</span>
             </SelectItem>
           ))
         )}
