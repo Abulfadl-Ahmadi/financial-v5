@@ -95,6 +95,39 @@ class PartyApiTests(TestCase):
         self.assertEqual(len(res1.json()), 1)
         self.assertEqual(len(res2.json()), 0)
 
+    def test_primary_card_source_of_truth_and_synchronization(self):
+        user = User.objects.create_user(username='card-sync-user', password='pw', role=UserRole.WORKER)
+        # Add two cards for the user party
+        card_a = register_card(party=get_user_party(user), number='6037997112345671', primary=True)
+        card_b = register_card(party=get_user_party(user), number='6037997112345672', primary=False)
+        user.refresh_from_db()
+        self.assertEqual(user.card_number, '6037997112345671')
+
+        # Switch primary card to card B via account PUT API
+        res = self.client.put(f'/api/financial/accounts/{card_b.pk}', data=json.dumps({
+            'is_primary': True,
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(res.status_code, 200)
+
+        card_a.refresh_from_db()
+        card_b.refresh_from_db()
+        user.refresh_from_db()
+        self.assertFalse(card_a.is_primary)
+        self.assertTrue(card_b.is_primary)
+        self.assertEqual(user.card_number, '6037997112345672')
+
+        # Attempt to rewrite card PAN directly on account returns 409
+        err = self.client.put(f'/api/financial/accounts/{card_b.pk}', data=json.dumps({
+            'card_number': '6037997112345679',
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(err.status_code, 409)
+
+        # Attempt to change primary directly via user update returns 409
+        err2 = self.client.put(f'/api/users/{user.pk}', data=json.dumps({
+            'card_number': '6037997112345671',
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(err2.status_code, 409)
+
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
