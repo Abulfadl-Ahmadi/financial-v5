@@ -90,6 +90,20 @@ class PartyApiTests(TestCase):
         worker_reveal = self.client.get(f'/api/financial/accounts/{account.pk}/reveal', HTTP_AUTHORIZATION=f'Bearer {worker_token}')
         self.assertEqual(worker_reveal.status_code, 403)
 
+    def test_unlink_account_from_user(self):
+        party = Party.objects.create(display_name='طرف حساب مستقل', kind=PartyKind.EXTERNAL)
+        account = Account.objects.create(card_number='6037997112345674', owner=party, user=self.worker, f_name='کاربر', l_name='قبلی')
+        self.assertEqual(account.user, self.worker)
+
+        # Unlink user via explicit null user_id
+        res = self.client.put(f'/api/financial/accounts/{account.pk}', data=json.dumps({
+            'user_id': None,
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(res.status_code, 200)
+
+        account.refresh_from_db()
+        self.assertIsNone(account.user)
+
     def test_same_name_users_do_not_leak_receipts(self):
         user1 = User.objects.create_user(username='reza1', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
         user2 = User.objects.create_user(username='reza2', password='pw', first_name='رضا', last_name='محمدی', role=UserRole.WORKER)
