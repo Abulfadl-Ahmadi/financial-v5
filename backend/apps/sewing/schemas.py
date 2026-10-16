@@ -33,3 +33,48 @@ class SewingProgressUpdateIn(BaseModel):
     completed_pieces: int
     rejected_pieces: int = 0
     status: Optional[str] = None
+
+class ContractOrderIn(BaseModel):
+    order_code: str
+    client_name: str
+    apparel_type: str
+    total_received_pieces: int
+    unit_contractor_price: Decimal
+    received_date_jalali: str
+    notes: Optional[str] = None
+
+class ContractOrderOut(BaseModel):
+    id: int
+    order_code: str
+    client_name: str
+    apparel_type: str
+    total_received_pieces: int
+    unit_contractor_price: Decimal
+    status: str
+    received_date_jalali: str
+    delivery_date_jalali: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    total_revenue: float
+
+    class Config:
+        from_attributes = True
+
+class ContractOrderUpdateIn(BaseModel):
+    client_name: Optional[str] = None
+    apparel_type: Optional[str] = None
+    total_received_pieces: Optional[int] = None
+    unit_contractor_price: Optional[Decimal] = None
+    status: Optional[str] = None
+    delivery_date_jalali: Optional[str] = None
+    notes: Optional[str] = None
+
+class ContractOrderSummaryOut(BaseModel):
+    id: int
+    order_code: str
+    client_name: str
+    status: str
+    total_revenue: float
+
+    class Config:
+        from_attributes = True
