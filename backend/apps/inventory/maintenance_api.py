@@ -6,6 +6,7 @@ from .maintenance_schemas import MachineAssetSchema, MaintenanceLogSchema, Maint
 import datetime
 from datetime import timedelta
 from apps.users.permissions import require_inventory_manager
+from core.jalali import date_to_jalali_str
 
 maintenance_router = Router(tags=["Maintenance"])
 
@@ -29,20 +30,20 @@ def create_maintenance_log(request, machine_id: int, payload: MaintenanceLogCrea
 
 @maintenance_router.get("/machinery/maintenance-due", response=List[MachineAssetSchema])
 def get_maintenance_due(request):
-    """List machines due for service within the next 7 days."""
+    """List machines due for service within the next 7 days, or overdue."""
     require_inventory_manager(request)
     today = datetime.date.today()
     target_date = today + timedelta(days=7)
-    today_str = today.strftime("%Y/%m/%d")
-    target_str = target_date.strftime("%Y/%m/%d")
-    
+    today_jalali = date_to_jalali_str(today)
+    target_jalali = date_to_jalali_str(target_date)
+
     logs = MaintenanceLog.objects.filter(
-        next_service_due_jalali__gte=today_str,
-        next_service_due_jalali__lte=target_str
-    ).select_related('machine')
-    
+        next_service_due_jalali__lte=target_jalali
+    ).select_related('machine').order_by('next_service_due_jalali')
+
     machines_dict = {}
     for log in logs:
-        machines_dict[log.machine.id] = log.machine
-        
+        if log.machine.id not in machines_dict:
+            machines_dict[log.machine.id] = log.machine
+
     return list(machines_dict.values())

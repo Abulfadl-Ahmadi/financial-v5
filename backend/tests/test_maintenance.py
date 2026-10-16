@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from ninja_jwt.tokens import RefreshToken
 from apps.users.models import UserRole
 from apps.inventory.maintenance_models import MachineAsset, MaintenanceLog, MachineType, MachineStatus, ServiceType
+from core.jalali import date_to_jalali_str
 import datetime
 from datetime import timedelta
 
@@ -81,15 +82,15 @@ class MaintenanceTestCase(TestCase):
         MaintenanceLog.objects.create(
             machine=self.machine1,
             service_type=ServiceType.NEEDLE_REPLACEMENT,
-            serviced_at_jalali=today.strftime("%Y/%m/%d"),
-            next_service_due_jalali=due_date.strftime("%Y/%m/%d")
+            serviced_at_jalali=date_to_jalali_str(today),
+            next_service_due_jalali=date_to_jalali_str(due_date)
         )
 
         MaintenanceLog.objects.create(
             machine=self.machine3,
             service_type=ServiceType.OIL_CHANGE,
-            serviced_at_jalali=today.strftime("%Y/%m/%d"),
-            next_service_due_jalali=not_due_date.strftime("%Y/%m/%d")
+            serviced_at_jalali=date_to_jalali_str(today),
+            next_service_due_jalali=date_to_jalali_str(not_due_date)
         )
 
         response = self.client.get("/api/inventory/machinery/maintenance-due")
