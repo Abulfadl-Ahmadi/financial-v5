@@ -69,6 +69,24 @@ class PartyApiTests(TestCase):
         self.assertEqual(receipt.from_party, self.workshop)
         self.assertEqual(receipt.to_party, self.recipient)
 
+    def test_edit_receipt_with_new_card_changes_destination(self):
+        source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
+        original = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')
+        response = self.post_json('/api/financial/receipts', {
+            'tracking_code': 'T-EDIT', 'date_jalali': '1405/01/01', 'amount': 500,
+            'from_account_id': source.pk, 'to_account_id': original.pk,
+        }, **self.auth)
+        self.assertEqual(response.status_code, 200)
+        receipt_id = response.json()['id']
+        updated = self.client.put(f'/api/financial/receipts/{receipt_id}', data=json.dumps({
+            'new_to_card_number': '6037997112345679', 'party_id': self.recipient.pk,
+        }), content_type='application/json', **self.auth)
+        self.assertEqual(updated.status_code, 200)
+        receipt = Receipt.objects.get(pk=receipt_id)
+        self.assertEqual(receipt.to_account.card_number, '6037997112345679')
+        self.assertEqual(receipt.to_party_id, self.recipient.pk)
+        self.assertEqual(original.owner_id, self.recipient.pk)
+
     def test_existing_card_cannot_be_silently_claimed(self):
         account = Account.objects.create(card_number='6037997112345678', owner=self.recipient, f_name='مریم', l_name='ب')
         other = Party.objects.create(display_name='دیگری')
