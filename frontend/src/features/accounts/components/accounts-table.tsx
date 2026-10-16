@@ -77,14 +77,13 @@ export function AccountsTable({ data, search, navigate }: DataTableProps) {
   })
 
   useEffect(() => {
-    ensurePageInRange(table.getFilteredRowModel().rows.length)
-  }, [table.getFilteredRowModel().rows.length, ensurePageInRange])
+    ensurePageInRange(table.getPageCount())
+  }, [table, ensurePageInRange])
 
   return (
     <div className='space-y-4'>
       <DataTableToolbar
         table={table}
-        filterFields={[]}
       />
       <div className='overflow-hidden rounded-md border border-border bg-card'>
         <Table>
