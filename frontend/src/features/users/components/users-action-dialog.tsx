@@ -159,7 +159,7 @@ export function UsersActionDialog({
   const handleRemoveExtraCard = (index: number) => {
     const card = additionalCards[index]
     if (isEdit && currentRow?.bank_accounts?.some((account) => account.card_number === card)) {
-      toast.error('کارت ثبت‌شده را از صفحهٔ حساب‌ها آرشیو کنید تا تاریخچهٔ فیش حفظ شود.')
+      toast.error('برای حذف انتساب کارت ثبت‌شده، آن را از صفحهٔ حساب‌ها آرشیو کنید تا فیش‌ها حفظ شوند.')
       return
     }
     setAdditionalCards((prev) => prev.filter((_, i) => i !== index))

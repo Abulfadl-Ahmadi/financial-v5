@@ -96,6 +96,8 @@ def update_account(request, account_id: int, payload: AccountUpdateIn):
         account.is_workshop_account = payload.is_workshop_account
     if payload.is_active is True and not account.is_active:
         raise HttpError(409, 'Archived cards require reviewed reactivation')
+    if account.owner_id and not account.owner.is_active and (payload.is_active is True or payload.is_primary is True):
+        raise HttpError(409, 'Archived parties cannot activate a payment card')
     if payload.is_active is not None:
         account.is_active = payload.is_active
     if payload.is_primary is True:
