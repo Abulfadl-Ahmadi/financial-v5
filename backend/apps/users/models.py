@@ -29,6 +29,7 @@ class UserRole(models.TextChoices):
     WAREHOUSE_MANAGER = 'WAREHOUSE_MANAGER', 'انباردار پارچه'
     IRONER = 'IRONER', 'اتوکار / پرس‌کار'
     WORKER = 'WORKER', 'خیاط / کارگر'
+    CLIENT = 'CLIENT', 'سفارش‌دهنده / پیمانکار'
 
 class User(AbstractUser):
     role = models.CharField(

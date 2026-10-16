@@ -18,7 +18,18 @@ class SeedWorkshopCommandTest(TestCase):
         self.assertEqual(User.objects.filter(role='ACCOUNTANT').count(), 1)
 
         contractor = User.objects.get(username='contractor1')
-        self.assertEqual(contractor.first_name, 'پیمانکار نمونه (تولیدی پوشاک ایده‌آل)')
+        self.assertEqual(contractor.first_name, 'پیمانکار نمونه')
+        self.assertEqual(contractor.brand_name, 'تولیدی پوشاک ایده‌آل')
+        self.assertEqual(contractor.role, 'CLIENT')
+
+        # Test Issue #21: Seeded contractor can log in to portal
+        login_res = self.client.post(
+            "/api/users/portal/client/login",
+            data={"username": "contractor1", "password": "123456"},
+            content_type="application/json"
+        )
+        self.assertEqual(login_res.status_code, 200)
+        self.assertIn("access", login_res.json())
 
         # Check Machinery
         self.assertEqual(MachineAsset.objects.filter(machine_type=MachineType.SEWING).count(), 11) # 10 sewing + 1 janome

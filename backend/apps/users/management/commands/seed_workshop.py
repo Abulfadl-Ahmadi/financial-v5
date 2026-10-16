@@ -38,8 +38,10 @@ class Command(BaseCommand):
             
         # Contractor
         contractor, created = User.objects.get_or_create(username='contractor1', defaults={
-            'first_name': 'پیمانکار نمونه (تولیدی پوشاک ایده‌آل)',
-            'role': 'CLIENT'
+            'first_name': 'پیمانکار نمونه',
+            'last_name': 'ایده‌آل',
+            'role': 'CLIENT',
+            'brand_name': 'تولیدی پوشاک ایده‌آل'
         })
         if created:
             contractor.set_password('123456')
