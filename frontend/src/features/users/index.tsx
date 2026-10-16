@@ -31,7 +31,7 @@ export function Users() {
       .then((response) => {
         setUsersData(response.data)
       })
-      .catch((error) => {
+      .catch(() => {
         toast.error('Failed to load users from server.')
       })
       .finally(() => {
