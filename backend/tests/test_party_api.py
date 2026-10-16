@@ -157,6 +157,35 @@ class PartyApiTests(TestCase):
         acc_obj = Account.objects.get(card_number='6037997112345673')
         self.assertFalse(acc_obj.is_workshop)
 
+    def test_invalid_card_format_in_user_create_rejects_and_rolls_back(self):
+        # Persian digits with hyphens are normalized and accepted
+        res = self.post_json('/api/users/', {
+            'username': 'persian-card-user', 'password': 'pw12345678', 'first_name': 'تست',
+            'last_name': 'کارت', 'role': 'WORKER', 'card_number': '۶۰۳۷-۹۹۷۱-۱۲۳۴-۵۶۷۵',
+        }, **self.auth)
+        self.assertEqual(res.status_code, 200)
+        user = User.objects.get(username='persian-card-user')
+        primary_acc = Account.objects.get(owner=user.party, is_primary=True)
+        self.assertEqual(primary_acc.card_number, '6037997112345675')
+
+        # Invalid card (letters or wrong length) fails with 400 and creates no user
+        res_fail = self.post_json('/api/users/', {
+            'username': 'fail-card-user', 'password': 'pw12345678', 'first_name': 'تست',
+            'last_name': 'خطا', 'role': 'WORKER', 'card_number': '6037INVALID12345',
+        }, **self.auth)
+        self.assertEqual(res_fail.status_code, 400)
+        self.assertFalse(User.objects.filter(username='fail-card-user').exists())
+
+        # Invalid additional card also fails with 400 and rolls back
+        res_fail2 = self.post_json('/api/users/', {
+            'username': 'fail-additional-user', 'password': 'pw12345678', 'first_name': 'تست',
+            'last_name': 'اضافه', 'role': 'WORKER', 'card_number': '6037997112345676',
+            'additional_cards': ['12345'],
+        }, **self.auth)
+        self.assertEqual(res_fail2.status_code, 400)
+        self.assertFalse(User.objects.filter(username='fail-additional-user').exists())
+        self.assertFalse(Account.objects.filter(card_number='6037997112345676').exists())
+
     def test_receipt_creation_keeps_party_snapshot(self):
         source = Account.objects.create(card_number='6037997112345678', owner=self.workshop, f_name='کارگاه', l_name='الف', is_workshop_account=True)
         dest = Account.objects.create(card_number='6104331122334455', owner=self.recipient, f_name='مریم', l_name='ب')

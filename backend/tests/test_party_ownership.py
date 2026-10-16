@@ -49,8 +49,13 @@ class PartyOwnershipTests(TestCase):
         )
         self.assertEqual(list(receipts_for_party(self.worker)), [receipt])
 
-    def test_persian_digits_are_normalized(self):
+    def test_persian_and_arabic_digits_and_delimiters_are_normalized(self):
         self.assertEqual(normalize_card('۶۱۰۴-۳۳۱۱-۲۲۳۳-۴۴۵۵'), self.destination.card_number)
+        self.assertEqual(normalize_card('٦١٠٤ ٣٣١١ ٢٢٣٣ ٤٤٥٥'), self.destination.card_number)
+        with self.assertRaises(ValueError):
+            normalize_card('6037ABC123456789')
+        with self.assertRaises(ValueError):
+            normalize_card('1234')
 
     def test_workshop_card_rejects_person_owner(self):
         with self.assertRaises(CardConflict):
