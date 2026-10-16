@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { AxiosError } from 'axios'
@@ -120,12 +120,13 @@ export function UserAuthForm({
                 <PasswordInput placeholder='********' {...field} />
               </FormControl>
               <FormMessage />
-              <Link
-                to='/forgot-password'
-                className='absolute inset-e-0 -top-0.5 text-sm font-medium text-muted-foreground hover:opacity-75'
+              <button
+                type='button'
+                onClick={() => toast.info('جهت بازیابی رمز عبور یا تخصیص دسترسی، با مدیریت کارگاه تماس بگیرید.')}
+                className='absolute inset-e-0 -top-0.5 text-xs font-medium text-muted-foreground hover:opacity-75 cursor-pointer'
               >
-                Forgot password?
-              </Link>
+                فراموشی رمز عبور؟
+              </button>
             </FormItem>
           )}
         />
