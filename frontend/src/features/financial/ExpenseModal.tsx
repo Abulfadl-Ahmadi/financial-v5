@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ExpenseCategory, ExpenseCategoryLabels, ExpenseFormData, Expense } from './types';
+import { getTodayJalali } from '@/lib/jalali-date';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -30,13 +31,12 @@ export function ExpenseModal({ isOpen, onClose, onSave, initialData }: ExpenseMo
     if (initialData && isOpen) {
       setCategory(initialData.category);
       setAmount(initialData.amount);
-      setDate(initialData.date);
-      setDescription(initialData.description);
+      setDate(initialData.date || initialData.date_jalali || '');
+      setDescription(initialData.description || initialData.title || '');
     } else if (isOpen) {
       setCategory('OTHER');
       setAmount('');
-      // set today's date in a simple format, in a real app this might use a Jalali date picker
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayJalali().formatted);
       setDescription('');
     }
   }, [initialData, isOpen]);
@@ -45,8 +45,11 @@ export function ExpenseModal({ isOpen, onClose, onSave, initialData }: ExpenseMo
     e.preventDefault();
     if (amount === '') return;
     onSave({
+      title: description || `${category} Expense`,
       category,
       amount: Number(amount),
+      date_jalali: date || getTodayJalali().formatted,
+      notes: description,
       date,
       description,
     });

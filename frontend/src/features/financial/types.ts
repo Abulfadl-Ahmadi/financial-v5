@@ -23,17 +23,32 @@ export const ExpenseCategoryLabels: Record<ExpenseCategory, string> = {
 
 export interface Expense {
   id: number;
+  title: string;
   category: ExpenseCategory;
   amount: number;
-  date: string;
-  description: string;
+  date_jalali: string;
+  account?: {
+    id: number;
+    card_number: string;
+    bank_name: string;
+    user_full_name?: string;
+  } | null;
+  notes?: string | null;
+  // Backward compatibility aliases
+  date?: string;
+  description?: string;
 }
 
 export interface ExpenseFormData {
+  title?: string;
   category: ExpenseCategory;
   amount: number;
-  date: string;
-  description: string;
+  date_jalali?: string;
+  account_id?: number | null;
+  notes?: string | null;
+  // Backward compatibility aliases
+  description?: string;
+  date?: string;
 }
 
 export interface OverheadBreakdownItem {

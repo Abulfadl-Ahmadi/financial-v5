@@ -31,6 +31,7 @@ import { parseDate, formatDate } from '@/lib/persian-date'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { type Expense } from '../data/schema'
 import { expenseCategories } from '../data/data'
+import { getTodayJalali } from '@/lib/jalali-date'
 
 type AccountSimple = {
   id: number
@@ -98,7 +99,7 @@ export function ExpensesActionDialog({
           title: '',
           category: 'SUPPLIES',
           amount: 0,
-          date_jalali: '1405/06/01',
+          date_jalali: getTodayJalali().formatted,
           account_id: 0,
           notes: '',
         },

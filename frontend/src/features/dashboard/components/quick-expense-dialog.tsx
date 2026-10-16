@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner'
 import { financialServices } from '@/features/financial/services'
 import { type ExpenseCategory } from '@/features/financial/types'
+import { getTodayJalali } from '@/lib/jalali-date'
 
 interface QuickExpenseDialogProps {
   open: boolean
@@ -47,7 +48,7 @@ export function QuickExpenseDialog({
   const [category, setCategory] = useState<ExpenseCategory>('SUPPLIES')
   const [amount, setAmount] = useState<string>('')
   const [description, setDescription] = useState<string>('')
-  const [date, setDate] = useState<string>('1405/06/01')
+  const [date, setDate] = useState<string>(getTodayJalali().formatted)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,10 +61,11 @@ export function QuickExpenseDialog({
     try {
       setLoading(true)
       await financialServices.createExpense({
+        title: description || `${category} Expense`,
         category,
         amount: Number(amount),
-        description: description || `${category} Expense`,
-        date: date || '1405/06/01',
+        date_jalali: date || getTodayJalali().formatted,
+        notes: description || undefined,
       })
       toast.success('Expense recorded successfully.')
       setAmount('')

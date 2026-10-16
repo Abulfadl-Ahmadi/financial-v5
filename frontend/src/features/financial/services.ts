@@ -8,12 +8,28 @@ export const financialServices = {
   },
 
   createExpense: async (data: ExpenseFormData): Promise<Expense> => {
-    const response = await apiClient.post('/financial/expenses', data);
+    const payload = {
+      title: data.title || data.description || `${data.category} Expense`,
+      category: data.category,
+      amount: data.amount,
+      date_jalali: data.date_jalali || data.date,
+      account_id: data.account_id || null,
+      notes: data.notes || data.description || null,
+    };
+    const response = await apiClient.post('/financial/expenses', payload);
     return response.data;
   },
 
   updateExpense: async (id: number, data: ExpenseFormData): Promise<Expense> => {
-    const response = await apiClient.put(`/financial/expenses/${id}`, data);
+    const payload = {
+      title: data.title || data.description || undefined,
+      category: data.category,
+      amount: data.amount,
+      date_jalali: data.date_jalali || data.date,
+      account_id: data.account_id !== undefined ? data.account_id : undefined,
+      notes: data.notes || data.description || undefined,
+    };
+    const response = await apiClient.put(`/financial/expenses/${id}`, payload);
     return response.data;
   },
 
