@@ -23,3 +23,5 @@ class ClothRoll(models.Model):
 
     def __str__(self):
         return f"{self.roll_code} - {self.fabric_type.name} ({self.color}) - {self.length_meters}m"
+
+from .maintenance_models import *
