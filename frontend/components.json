@@ -17,5 +17,8 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "iconLibrary": "none"
+  "iconLibrary": "none",
+  "registries": {
+    "@persianlabsui": "https://ui.persian-labs.ir/r/{name}.json"
+  }
 }
