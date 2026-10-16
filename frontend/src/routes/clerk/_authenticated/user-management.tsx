@@ -87,7 +87,22 @@ function UserManagement() {
           </div>
           <UsersPrimaryButtons />
         </div>
-        <UsersTable data={users} navigate={navigate} search={search} />
+        <UsersTable 
+          data={users.map(u => ({
+            id: u.id,
+            username: u.username,
+            first_name: u.firstName,
+            last_name: u.lastName,
+            email: u.email,
+            phone_number: u.phoneNumber,
+            card_number: null,
+            brand_name: null,
+            role: u.role,
+            status: u.status,
+          }))} 
+          navigate={navigate} 
+          search={search} 
+        />
       </Main>
 
       <UsersDialogs />
