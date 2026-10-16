@@ -4,6 +4,7 @@ from apps.users.models import UserRole
 from apps.inventory.models import FabricType, ClothRoll
 from apps.cutting.models import Cut, CutRollUsage, Sizes, CutStatus
 from decimal import Decimal
+from ninja_jwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -56,8 +57,25 @@ class CuttingTestCase(TestCase):
         self.assertEqual(self.cut.total_margin, 10800000.0)
 
     def test_cut_detail_api(self):
-        """Test Cut detail Ninja API endpoint."""
-        response = self.client.get("/api/cutting/cuts/CUT-TEST-001")
+        """Test Cut detail Ninja API endpoint with authentication and RBAC."""
+        # Unauthenticated request is rejected with 401
+        anon_res = self.client.get("/api/cutting/cuts/CUT-TEST-001")
+        self.assertEqual(anon_res.status_code, 401)
+
+        # Worker role is rejected with 403
+        worker_token = str(RefreshToken.for_user(self.owner).access_token)
+        forbidden_res = self.client.get(
+            "/api/cutting/cuts/CUT-TEST-001",
+            HTTP_AUTHORIZATION=f"Bearer {worker_token}"
+        )
+        self.assertEqual(forbidden_res.status_code, 403)
+
+        # Authorized supervisor succeeds with 200
+        cutter_token = str(RefreshToken.for_user(self.cutter).access_token)
+        response = self.client.get(
+            "/api/cutting/cuts/CUT-TEST-001",
+            HTTP_AUTHORIZATION=f"Bearer {cutter_token}"
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["cut_code"], "CUT-TEST-001")

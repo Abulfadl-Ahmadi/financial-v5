@@ -4,6 +4,7 @@ from apps.users.models import UserRole
 from apps.cutting.models import Cut, Sizes
 from apps.sewing.models import SewingJob, SewingStatus
 from decimal import Decimal
+from ninja_jwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -38,16 +39,39 @@ class SewingTestCase(TestCase):
         self.assertEqual(self.job.total_payable_amount, 5600000.0)
 
     def test_update_sewing_progress_api(self):
-        """Test PATCH progress API endpoint."""
+        """Test PATCH progress API endpoint with auth and RBAC."""
         payload = {
             "completed_pieces": 100,
             "rejected_pieces": 1,
             "status": "COMPLETED"
         }
-        response = self.client.patch(
+
+        # Unauthenticated rejected with 401
+        anon_res = self.client.patch(
             f"/api/sewing/jobs/{self.job.id}/progress",
             data=payload,
             content_type="application/json"
+        )
+        self.assertEqual(anon_res.status_code, 401)
+
+        # Other unrelated worker rejected with 403
+        other_worker = User.objects.create_user(username="other_tailor", role=UserRole.WORKER)
+        other_token = str(RefreshToken.for_user(other_worker).access_token)
+        forbidden_res = self.client.patch(
+            f"/api/sewing/jobs/{self.job.id}/progress",
+            data=payload,
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {other_token}"
+        )
+        self.assertEqual(forbidden_res.status_code, 403)
+
+        # Assigned supervisor / sewer succeeds with 200
+        sewer_token = str(RefreshToken.for_user(self.sewer).access_token)
+        response = self.client.patch(
+            f"/api/sewing/jobs/{self.job.id}/progress",
+            data=payload,
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {sewer_token}"
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()

@@ -5,15 +5,18 @@ from apps.cutting.models import Cut, CutRollUsage
 from apps.cutting.schemas import CutOut, CutCreateIn
 from apps.users.models import User
 from apps.inventory.models import ClothRoll
+from apps.users.permissions import require_cutting_supervisor
 
 router = Router(tags=["Cutting Workshop (کارگاه برش)"])
 
 @router.get("/cuts", response=List[CutOut])
 def list_cuts(request):
+    require_cutting_supervisor(request)
     return Cut.objects.select_related("owner", "cutter").prefetch_related("roll_usages__roll__fabric_type").all().order_by("-created_at")
 
 @router.get("/cuts/{cut_code}", response=CutOut)
 def get_cut_detail(request, cut_code: str):
+    require_cutting_supervisor(request)
     try:
         return Cut.objects.select_related("owner", "cutter").prefetch_related("roll_usages__roll__fabric_type").get(cut_code=cut_code)
     except Cut.DoesNotExist:
@@ -21,6 +24,7 @@ def get_cut_detail(request, cut_code: str):
 
 @router.post("/cuts", response=CutOut)
 def create_cut(request, payload: CutCreateIn):
+    require_cutting_supervisor(request)
     if Cut.objects.filter(cut_code=payload.cut_code).exists():
         raise HttpError(400, "کد دستور برش تکراری است")
     
