@@ -14,16 +14,9 @@ from ninja_jwt.tokens import RefreshToken
 router = Router(tags=["Users & Auth"])
 
 
-def require_finance_manager(request):
-    if request.user.role not in ('OWNER', 'ACCOUNTANT'):
-        raise HttpError(403, 'Financial management permission required')
+from apps.users.permissions import require_owner, require_finance_manager
 
-
-def require_owner(request):
-    if request.user.role != 'OWNER':
-        raise HttpError(403, 'Owner permission required')
-
-@router.post("/login")
+@router.post("/login", auth=None)
 def login(request, payload: LoginIn):
     user = authenticate(username=payload.username, password=payload.password)
     if not user:

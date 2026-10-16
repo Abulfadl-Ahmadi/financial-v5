@@ -20,7 +20,7 @@ class Cut(models.Model):
     model_code = models.CharField(max_length=100, verbose_name="کد مدل")
     size = models.CharField(max_length=10, choices=Sizes.choices, default=Sizes.FREE, verbose_name="سایز بندی")
     
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owned_cuts", verbose_name="تولیدکننده / سفارش‌دهنده")
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="owned_cuts", verbose_name="تولیدکننده / سفارش‌دهنده")
     cutter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="cut_jobs", verbose_name="برشکار")
     
     lai_per_unit = models.PositiveSmallIntegerField(default=1, verbose_name="تعداد لا")
