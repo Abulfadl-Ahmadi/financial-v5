@@ -9,6 +9,7 @@ from apps.financial.api import router as financial_router
 
 from apps.users.portal_auth import router as portal_auth_router
 from apps.sewing.portal_api import router as portal_sewing_router
+from apps.ai_assistant.api import ai_router
 
 api = NinjaAPI(
     title="Garment ERP & Financial API (سیستم جامع مدیریت کارگاه پوشاک)",
@@ -25,3 +26,4 @@ api.add_router("/cutting/", cutting_router)
 api.add_router("/sewing/", sewing_router)
 api.add_router("/sewing/tailors/", incentive_router)
 api.add_router("/financial/", financial_router)
+api.add_router("/ai/", ai_router)

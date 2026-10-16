@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'apps.cutting',
     'apps.sewing',
     'apps.financial',
+    'apps.ai_assistant',
 ]
 
 MIDDLEWARE = [
